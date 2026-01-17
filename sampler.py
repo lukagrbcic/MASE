@@ -85,7 +85,26 @@ class Sampler:
             
         return self.X_elite, self.fx_elite
     
-    def 
+    def n_runs(self, n=1):
+        
+        x_n = []
+        fx_n = []
+        
+        for i in range(n):
+            x_elite, fx_elite = self.search()
+            x_n.append(x_elite)
+            fx_n.append(fx_elite)
+            
+            self.X_elite = []
+            self.fx_elite = []
+            
+        x_n = np.array(x_n)
+        fx_n = np.array(fx_n)
+                
+        return x_n, fx_n
+        
+
+            
 
 
 
