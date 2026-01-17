@@ -26,66 +26,70 @@ class Sampler:
         self.fx_elite = []
         
             
-    def archive_elite(self, X, FX):
+    def _archive(self, X, FX):
         
-        fx_min_idx = np.argsort(FX)[0]
-        x_min = X[fx_min_idx]
-        fx_min = FX[fx_min_idx]
-        
-        self.X_elite.append(x_min)
-        self.fx_elite.append(fx_min)
-        
-    def evaluate(self, x):
+        best_idx = np.argmin(FX)
+        current_best_f = FX[best_idx]
+        current_best_x = X[best_idx]
+    
+        if not self.fx_elite:
+            self.fx_elite.append(current_best_f)
+            self.X_elite.append(current_best_x)
+        else:
+            prev_best_f = self.fx_elite[-1]
+            
+            if current_best_f < prev_best_f:
+                self.fx_elite.append(current_best_f)
+                self.X_elite.append(current_best_x)
+            else:
+                self.fx_elite.append(prev_best_f)
+                self.X_elite.append(self.X_elite[-1])
+            
+    def _evaluate(self, x):
         
         return self.f(x)
 
-    def initialize(self):
+    def _initialize(self):
             
         x = qmc.scale(qmc.LatinHypercube(d=self.dim, seed=self.seed).random(n=self.n_init), self.lb, self.ub)
         
         return x
     
+    def _generate(self):
+        
+        if self.method == 'random':
+            x = np.random.uniform(self.lb, self.ub, size=(self.n_size, self.dim))
+        
+        elif self.method == 'lhs':
+            x = qmc.scale(qmc.LatinHypercube(d=self.dim).random(n=self.n_size), self.lb, self.ub)
+        
+        elif self.method == 'sobol':
+            x = qmc.scale(qmc.Sobol(d=self.dim).random(n=self.n_size), self.lb, self.ub)
+            
+        elif self.method == 'halton':
+            x = qmc.scale(qmc.Halton(d=self.dim).random(n=self.n_size), self.lb, self.ub)
+        
+        return x
+    
     def search(self):
         
-        x = self.initialize()
-        fx = self.evaluate(x)
+        x = self._initialize()
+        fx = self._evaluate(x)
+        self._archive(x, fx)
         
-        X = np.copy(x)
-        FX = np.copy(fx)
-                
-        self.archive_elite(X, FX)
-        
-        while len(X) < self.n_evals:
+        while len(self.X_elite) < self.n_evals:
             
-            if self.method == 'random':
-                x = np.random.uniform(self.lb, self.ub, size=(self.n_size, self.dim))
+            x = self._generate()
+            fx = self._evaluate(x)
+            self._archive(x, fx)
             
-            elif self.method == 'lhs':
-                x = qmc.scale(qmc.LatinHypercube(d=self.dim).random(n=self.n_size), self.lb, self.ub)
-            
-            elif self.method == 'sobol':
-                x = qmc.scale(qmc.Sobol(d=self.dim).random(n=self.n_size), self.lb, self.ub)
-                
-            elif self.method == 'halton':
-                x = qmc.scale(qmc.Halton(d=self.dim).random(n=self.n_size), self.lb, self.ub)
-        
-            fx = self.evaluate(x)
-                        
-            X = np.vstack((X,x))
-            FX = np.vstack((FX, fx))
-            
-            # self.archive_elite(X, FX)
-            
-            #print (self.X_elite)
-            #print (self.fx_elite)
-            print (len(X))
-            # print (FX)
-            
-            # sys.exit()
-                
-        
-        # return np.array(self.X_elite[-1]), self.fx_elite[-1], np.array(self.X_elite), np.array(self.fx_elite)
-        
+        return self.X_elite, self.fx_elite
+    
+    def 
+
+
+
+
         
         
         
