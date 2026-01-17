@@ -8,17 +8,28 @@ def sphere(x):
     # axis=-1 sums across the last dimension (the coordinates)
     return np.sum(x**2, axis=-1)
 
+def rastrigin(x):
+    
+    x = np.asarray(x)
+    
+    if len(np.shape(x)) == 1:
+        d = len(x)
+    else:
+        d = np.shape(x)[-1]
+    
+    return 10*d + np.sum(x**2 - 10*np.cos(2*np.pi*x), axis=-1)
+
 
 dim=2
 lb = np.ones(dim)*-5.12
 ub = np.ones(dim)*5.12
 
-f = sphere 
+f = rastrigin 
 n_evals = 1024
 n_init = 100
 n_size = 10
 seed=111
-runs=50
+runs=100
 
 plt.figure(figsize=(6,5))
 optimizer_random = Sampler(f, lb, ub, n_evals, n_size, n_init, seed=seed)
