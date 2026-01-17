@@ -69,7 +69,7 @@ class Sampler:
     def _generate(self):
         
         if self.method == 'random':
-            x = np.random.uniform(self.lb, self.ub, size=(self.n_size, self.dim))
+            x = np.random.uniform(0, 1, size=(self.n_size, self.dim))
         
         elif self.method == 'lhs':
             x = qmc.LatinHypercube(d=self.dim).random(n=self.n_size)
