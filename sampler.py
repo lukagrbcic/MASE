@@ -24,7 +24,8 @@ class Sampler:
         
         self.X_elite = []
         self.fx_elite = []
-        
+    
+    
             
     def _archive(self, X, FX):
         
@@ -45,13 +46,23 @@ class Sampler:
                 self.fx_elite.append(prev_best_f)
                 self.X_elite.append(self.X_elite[-1])
             
+    def _denormalize(self, x_n):
+        
+        x = x_n * (self.ub - self.lb) + self.lb
+        x = np.clip(x, self.lb, self.ub)
+        
+        return x
+        
     def _evaluate(self, x):
         
+        x = self._denormalize(x)
+             
         return self.f(x)
+
 
     def _initialize(self):
             
-        x = qmc.scale(qmc.LatinHypercube(d=self.dim, seed=self.seed).random(n=self.n_init), self.lb, self.ub)
+        x = qmc.LatinHypercube(d=self.dim, seed=self.seed).random(n=self.n_init)
         
         return x
     
@@ -61,13 +72,13 @@ class Sampler:
             x = np.random.uniform(self.lb, self.ub, size=(self.n_size, self.dim))
         
         elif self.method == 'lhs':
-            x = qmc.scale(qmc.LatinHypercube(d=self.dim).random(n=self.n_size), self.lb, self.ub)
+            x = qmc.LatinHypercube(d=self.dim).random(n=self.n_size)
         
         elif self.method == 'sobol':
-            x = qmc.scale(qmc.Sobol(d=self.dim).random(n=self.n_size), self.lb, self.ub)
+            x = qmc.Sobol(d=self.dim).random(n=self.n_size)
             
         elif self.method == 'halton':
-            x = qmc.scale(qmc.Halton(d=self.dim).random(n=self.n_size), self.lb, self.ub)
+            x = qmc.Halton(d=self.dim).random(n=self.n_size)
         
         return x
     
@@ -83,7 +94,9 @@ class Sampler:
             fx = self._evaluate(x)
             self._archive(x, fx)
             
-        return self.X_elite, self.fx_elite
+        X_elite_denorm = self._denormalize(self.X_elite)
+            
+        return X_elite_denorm, self.fx_elite
     
     def n_runs(self, n=1):
         
@@ -100,7 +113,7 @@ class Sampler:
             
         x_n = np.array(x_n)
         fx_n = np.array(fx_n)
-                
+        
         return x_n, fx_n
         
 
