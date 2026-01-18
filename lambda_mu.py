@@ -77,16 +77,12 @@ class LambdaMU:
         x = self._initialize()
         x_sigma = np.random.uniform(0.05, 0.1, self.mu)
                
-        fx = self._evaluate(x)
-        self._archive(x, fx)
+        func_call = 0
         
-        func_call = len(fx)
-        
-        while func_call < self.n_evals - self.mu:
+        while func_call < self.n_evals:
             
             x_lambda = []
             x_lambda_sigma = []
-            #fx_lambda = []
         
             for i in range(self.lambda_):
                 
@@ -110,6 +106,7 @@ class LambdaMU:
             fx_lambda = self._evaluate(np.array(x_lambda))
             # print (len(fx_lambda))
             func_call += len(fx_lambda)
+           # print ('func call', func_call)
                     
 
             indices = np.argsort(fx_lambda)
