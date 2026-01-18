@@ -80,11 +80,13 @@ class LambdaMU:
         fx = self._evaluate(x)
         self._archive(x, fx)
         
-        while len(self.X_elite) < self.n_evals:
+        func_call = len(fx)
+        
+        while func_call < self.n_evals - self.mu:
             
             x_lambda = []
             x_lambda_sigma = []
-            fx_lambda = []
+            #fx_lambda = []
         
             for i in range(self.lambda_):
                 
@@ -97,12 +99,17 @@ class LambdaMU:
                 # -- Mutation --
                 # Mutate sigma first (log-normal mutation)
                 x_new_sigma *= np.exp(self.tau * np.random.randn())
+                x_new_sigma = max(x_new_sigma, 1e-5)
                 x_new += x_new_sigma * np.random.randn(self.dim)
+                x_new = np.clip(x_new, 0, 1)
 
                 x_lambda.append(x_new)
                 x_lambda_sigma.append(x_new_sigma)
-                x_new = np.clip(x_new, 0, 1)
-                fx_lambda.append(self._evaluate(x_new))
+            
+            
+            fx_lambda = self._evaluate(np.array(x_lambda))
+            # print (len(fx_lambda))
+            func_call += len(fx_lambda)
                     
 
             indices = np.argsort(fx_lambda)
