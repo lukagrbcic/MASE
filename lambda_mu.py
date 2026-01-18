@@ -79,9 +79,7 @@ class LambdaMU:
             x_lambda = []
             x_lambda_sigma = []
             fx_lambda = []
-            
-
-            
+        
             for i in range(self.lambda_):
                 
                 """select two from x"""
