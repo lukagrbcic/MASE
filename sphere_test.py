@@ -31,21 +31,21 @@ dim=10
 lb = np.ones(dim)*-5.12
 ub = np.ones(dim)*5.12
 
-f = rastrigin
-n_evals = 50000
+f = rastrigin_shifted
+n_evals = 100000
 n_init = 10
-n_size = 100
+n_size = 200
 seed=111
 runs=10
 
 
 
 plt.figure(figsize=(6,5))
-optimizer_lmu = LambdaMU(f, lb, ub, n_evals, mu=n_size)
+optimizer_lmu = LambdaMU(f, lb, ub, n_evals, mu=n_size, seed=seed)
 x_dyn, fx_dyn = optimizer_lmu.n_runs(n=runs)
 plt.plot(np.arange(0, len(fx_dyn[-1]), 1), np.mean(fx_dyn, axis=0), label='(Lambda, mu), dyn tau')
 
-optimizer_lmu = LambdaMU(f, lb, ub, n_evals, mu=n_size, tau=0.01)
+optimizer_lmu = LambdaMU(f, lb, ub, n_evals, mu=n_size, tau=0.01, seed=seed)
 x_fixed, fx_fixed = optimizer_lmu.n_runs(n=runs)
 plt.plot(np.arange(0, len(fx_fixed[-1]), 1), np.mean(fx_fixed, axis=0), label='(Lambda, mu), 0.01 tau')
 
