@@ -6,7 +6,7 @@ import sys
 
 class LambdaMU:
     
-    def __init__(self, f, lb, ub, n_evals, mu, strategy='', seed=None):
+    def __init__(self, f, lb, ub, n_evals, mu, tau=None, strategy='', seed=None):
         
         self.f = f
         self.lb = lb
@@ -15,12 +15,18 @@ class LambdaMU:
         self.mu = mu
         self.strategy = strategy
         self.seed = seed
+        self.tau = tau
         
         if self.seed is None:
             self.seed = np.random.randint(1, 1e5)
     
         self.dim = len(self.lb)
         self.lambda_ = int(7*mu)
+        
+        if self.tau is None:
+            self.tau = 1/np.sqrt(2*self.dim)
+        else:
+            self.tau = tau
 
         
         self.X_elite = []
@@ -90,11 +96,12 @@ class LambdaMU:
                 
                 # -- Mutation --
                 # Mutate sigma first (log-normal mutation)
-                x_new_sigma *= np.exp(0.1 * np.random.randn())
+                x_new_sigma *= np.exp(self.tau * np.random.randn())
                 x_new += x_new_sigma * np.random.randn(self.dim)
 
                 x_lambda.append(x_new)
                 x_lambda_sigma.append(x_new_sigma)
+                x_new = np.clip(x_new, 0, 1)
                 fx_lambda.append(self._evaluate(x_new))
                     
 
