@@ -25,13 +25,7 @@ class LambdaMU:
         
         self.X_elite = []
         self.fx_elite = []
-        
-        
-        
-        
-        
-    
-    
+
     def _archive(self, X, FX):
         
         best_idx = np.argmin(FX)
@@ -76,54 +70,49 @@ class LambdaMU:
         
         x = self._initialize()
         x_sigma = np.random.uniform(0.05, 0.1, self.mu)
-        
-        print (x_sigma)
-        
-        
+               
         fx = self._evaluate(x)
         self._archive(x, fx)
         
         while len(self.X_elite) < self.n_evals:
             
-            x_lambda = np.array([])
-            x_lambda_sigma = np.array([])
-            fx_lambda = np.array([])
+            x_lambda = []
+            x_lambda_sigma = []
+            fx_lambda = []
+            
+
             
             for i in range(self.lambda_):
                 
                 """select two from x"""
                 idx1, idx2 = np.random.choice(self.mu, 2, replace=False)
                 
-          
                 x_new = np.where(np.random.rand(self.dim) < 0.5, x[idx1], x[idx2])
                 x_new_sigma = (x_sigma[idx1] + x_sigma[idx2]) / 2.0
-                
-                
                 
                 # -- Mutation --
                 # Mutate sigma first (log-normal mutation)
                 x_new_sigma *= np.exp(0.1 * np.random.randn())
-                
                 x_new += x_new_sigma * np.random.randn(self.dim)
 
-                
-                
-                x_lambda = np.append(x_lambda, x_new)
-                x_lambda_sigma = np.append(x_lambda_sigma, x_new_sigma)
-                fx_lambda = np.append(fx_lambda, self._evaluate(x_new))
+                x_lambda.append(x_new)
+                x_lambda_sigma.append(x_new_sigma)
+                fx_lambda.append(self._evaluate(x_new))
                     
 
             indices = np.argsort(fx_lambda)
             top_indices = indices[:self.mu]
         
-            # The new parent population is ONLY the best offspring
-            x = x_lambda[top_indices]
-            x_sigma = x_lambda_sigma[top_indices]                
-            fx = fx_lambda[top_indices]
+            x = np.array(x_lambda)[top_indices]
+            x_sigma = np.array(x_lambda_sigma)[top_indices]                
+            fx = np.array(fx_lambda)[top_indices]
             
             self._archive(x, fx)
+        
+        X_elite_denorm = self._denormalize(self.X_elite)
+
             
-        return self.X_elite, self.fx_elite
+        return X_elite_denorm, self.fx_elite
     
     def n_runs(self, n=1):
         
