@@ -410,6 +410,8 @@ else:
     print("No valid solutions were found.")
 # Place this function near your evaluation_server function
 import matplotlib.pyplot as plt # ADD THIS IMPORT
+import matplotlib
+matplotlib.use('Agg') # Use a non-interactive backend
 from matplotlib.patches import Circle, Rectangle # ADD THIS IMPORT
 def plot_final_packing(circles: np.ndarray, radii_sum: float):
     """

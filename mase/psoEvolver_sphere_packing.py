@@ -228,6 +228,7 @@ class LLMAgentEvolver:
             return None
     
         iteration = 0
+        iteration = 0
         while self.query_calls < self.n_queries:
             iteration += 1
             print(f"\n--- PSO Iteration {iteration} | LLM Queries: {self.query_calls}/{self.n_queries} ---")
@@ -237,8 +238,11 @@ class LLMAgentEvolver:
                 new_codes = list(executor.map(self._pso_update_worker, self.population))
             
             # 2. Evaluate and Repair the new solutions
+            # This line correctly filters out agents that failed generation due to budget
             new_agents = [{'code': code, 'fitness': None, 'error': None} for code in new_codes if code]
-            if not new_agents: continue
+            if not new_agents:
+                print("No new agents were generated in this iteration (likely due to query budget).")
+                continue
             
             evaluated_agents = self._evaluate_population(new_agents)
             repaired_agents = []
@@ -246,8 +250,7 @@ class LLMAgentEvolver:
                 repaired_agents = list(executor.map(self._repair_agent_worker, evaluated_agents))
             
             # 3. Update agent states, personal bests, and global best
-            for i, agent in enumerate(self.population):
-                new_solution = repaired_agents[i]
+            for agent, new_solution in zip(self.population, repaired_agents):
                 if new_solution['fitness'] != float('inf'):
                     # Update agent's current position
                     agent['current_code'] = new_solution['code']
@@ -267,11 +270,12 @@ class LLMAgentEvolver:
             print(f"End of Iteration {iteration}. Global best fitness so far: {self.g_best['fitness']:.4f}")
             
         return self.g_best
-    
+        
 # Example Usage
 #if __name__ == '__main__':
 #MODEL_TO_USE = "lbl/cborg-deepthought:latest"
 MODEL_TO_USE = 'xai/grok-mini'
+MODEL_TO_USE = 'google/gemini-flash'
 #MODEL_TO_USE = "lbl/cborg-chat:latest"
 
 
@@ -351,6 +355,7 @@ else:
 
 # Place this function near your evaluation_server function
 import matplotlib.pyplot as plt
+import matplotlib
 matplotlib.use('Agg') # Use a non-interactive backend
 from matplotlib.patches import Circle, Rectangle
 def plot_final_packing(circles: np.ndarray, radii_sum: float):
