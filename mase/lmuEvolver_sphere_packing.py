@@ -118,7 +118,7 @@ def evaluation_server(code_string: str) -> tuple[float, str | None]:
 
 class LLMAgentEvolver:
     
-    def __init__(self, problem_description, model_name, n_queries, mu, strategy='(mu,lambda)', max_repair_attempts=1, seed=None):
+    def __init__(self, problem_description, model_name, n_queries, mu, strategy='(mu,lambda)', max_repair_attempts=2):
 
         self.problem_description = problem_description
         self.model_name = model_name
@@ -126,23 +126,31 @@ class LLMAgentEvolver:
         self.mu = mu
         self.strategy = strategy
         self.max_repair_attempts = max_repair_attempts 
-        self.seed = seed
 
-        if self.seed is None: self.seed = random.randint(1, 1e5)
-        random.seed(self.seed)
-        np.random.seed(self.seed)
 
         self.lambda_ = int(2*mu)
         self.best_agents_history = []
         
-        # --- Counters and Locks for Parallel Execution ---
         self.query_calls = 0
         self.query_lock = threading.Lock()
 
     def _archive(self, population):
+        # This is the best agent from the current pool of parents
         current_best_agent = population[0]
-        if not self.best_agents_history or current_best_agent['fitness'] < self.best_agents_history[-1]['fitness']:
+    
+        # If the best agent is invalid, do not archive anything.
+        if current_best_agent['fitness'] == float('inf'):
+            if not self.best_agents_history:
+                self.best_agents_history.append(current_best_agent)
+            return # Exit the function
+    
+        # If the history is empty, this is the first valid agent we've seen.
+        if not self.best_agents_history or self.best_agents_history[-1]['fitness'] == float('inf'):
             self.best_agents_history.append(current_best_agent)
+        # If the new agent is better than the best we've seen before, add it.
+        elif current_best_agent['fitness'] < self.best_agents_history[-1]['fitness']:
+            self.best_agents_history.append(current_best_agent)
+        # Otherwise, carry the previous best forward.
         else:
             self.best_agents_history.append(self.best_agents_history[-1])
 
@@ -155,7 +163,7 @@ class LLMAgentEvolver:
         
         for agent, (fitness, error) in zip(population, results):
             agent['fitness'] = fitness
-            agent['error'] = error # Store the error message
+            agent['error'] = error
         return population
     
 
@@ -185,6 +193,7 @@ class LLMAgentEvolver:
     "{current_error}"
     
     Fix the bug that caused this error. Output only the raw, complete, corrected Python code.
+    Please DON'T FORGET TO ADD imports to the start of the code!'
     """
             fixed_code = self._llm_query(repair_prompt)
             if not fixed_code:
@@ -322,7 +331,7 @@ class LLMAgentEvolver:
 # Example Usage
 #if __name__ == '__main__':
 #MODEL_TO_USE = "lbl/cborg-coder:latest"
-MODEL_TO_USE = 'lbl/cborg-chat:latest'
+MODEL_TO_USE = 'xai/grok-mini'
 
 
 
@@ -362,17 +371,17 @@ return circles
 """
 
 PROBLEM_PROMPT = f"""
-You are an expert computational geometry programmer. Your task is to solve a circle packing problem.
+You are an expert computational geometry programmer. Your task is to improve a solution for a circle packing problem.
 The goal is to place 26 non-overlapping circles inside a 1x1 unit square to maximize the sum of their radii.
 
-Complete the following Python code. The function must be named `circle_packing26` and return a NumPy array of shape (26, 3).
-Each row in the array represents a circle `[center_x, center_y, radius]`.
+Below is a simple but valid, working solution. Your task is to modify this code to find a better packing.
+The function must be named `circle_packing26` and return a NumPy array of shape (26, 3).
 
-Here is a template to start from. Improve the logic to find a better packing. You can use any algorithm you see fit (e.g., random search, grid packing, optimization methods).
+**Crucially, ensure all necessary imports like `import numpy as np` are included at the top of the script.**
 
 ```python
 {SEED_CODE}
-Output only the raw, complete Python code in a single code block.
+Output only the raw, complete Python code in a single code block. Do not add any explanation.
 """
 
 evolver = LLMAgentEvolver(
