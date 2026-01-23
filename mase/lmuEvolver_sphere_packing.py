@@ -119,6 +119,7 @@ def evaluation_server(code_string: str) -> tuple[float, str | None]:
 class LLMAgentEvolver:
     
     def __init__(self, problem_description, model_name, n_queries, mu, strategy='(mu,lambda)', max_repair_attempts=1, seed=None):
+
         self.problem_description = problem_description
         self.model_name = model_name
         self.n_queries = n_queries
@@ -126,9 +127,11 @@ class LLMAgentEvolver:
         self.strategy = strategy
         self.max_repair_attempts = max_repair_attempts 
         self.seed = seed
+
         if self.seed is None: self.seed = random.randint(1, 1e5)
         random.seed(self.seed)
         np.random.seed(self.seed)
+
         self.lambda_ = int(2*mu)
         self.best_agents_history = []
         
@@ -231,6 +234,19 @@ class LLMAgentEvolver:
         
         population = [{'code': code, 'fitness': None} for code in initial_codes if code]
         return self._evaluate_population(population)
+        
+    # def _initialize_population(self):
+    #     print("Initializing population of size 5 (sequentially)...")
+    #     population = []
+    #     for _ in range(self.mu):
+    #         # We call _llm_query directly in a simple loop.
+    #         # This avoids any multi-threading issues at startup.
+    #         code = self._llm_query(self.problem_description)
+    #         # We now create the full agent dictionary here.
+    #         population.append({'code': code, 'fitness': None, 'error': None})
+        
+    #     print("\nEvaluating initial population in parallel...")
+    #     return self._evaluate_population(population)
 
     def _recombination_worker(self, parent_pair):
         """Worker function to perform recombination for a pair of parents."""
@@ -304,36 +320,48 @@ class LLMAgentEvolver:
         return self.best_agents_history
 
 # Example Usage
-if __name__ == '__main__':
-    MODEL_TO_USE = "lbl/cborg-coder:latest"
+#if __name__ == '__main__':
+#MODEL_TO_USE = "lbl/cborg-coder:latest"
+MODEL_TO_USE = 'lbl/cborg-chat:latest'
 
-    
-    # The initial "seed" code provided to the LLM
-    SEED_CODE = """
+
+
+#model='google/gemini-flash'
+#model='anthropic/claude-haiku'
+#model='openai/o4-mini'
+#model='openai/o3-mini'
+#model='openai/gpt-5-mini'
+model='lbl/cborg-coder:latest'
+#model='lbl/cborg-deepthought:latest'
+#model = 'xai/grok-mini'
+
+
+# The initial "seed" code provided to the LLM
+SEED_CODE = """
 import numpy as np
 
 def circle_packing26() -> np.ndarray:
-    \"\"\"
-    Places 26 non-overlapping circles in the unit square in order to maximize the sum of radii.
+\"\"\"
+Places 26 non-overlapping circles in the unit square in order to maximize the sum of radii.
 
-    Returns:
-        circles: np.array of shape (26,3), where the i-th row (x,y,r) stores the (x,y) coordinates of the i-th circle of radius r.
-    \"\"\"
-    n = 26
-    circles = np.zeros((n, 3))
+Returns:
+    circles: np.array of shape (26,3), where the i-th row (x,y,r) stores the (x,y) coordinates of the i-th circle of radius r.
+\"\"\"
+n = 26
+circles = np.zeros((n, 3))
 
-    # A very simple initial guess: place circles along a line. This is a bad but valid start.
-    # This gives the LLM something concrete to improve upon.
-    radius = 1.0 / (2.0 * n)
-    for i in range(n):
-        x = (2.0 * i + 1.0) / (2.0 * n)
-        y = 0.5
-        circles[i] = [x, y, radius]
-    
-    return circles
+# A very simple initial guess: place circles along a line. This is a bad but valid start.
+# This gives the LLM something concrete to improve upon.
+radius = 1.0 / (2.0 * n)
+for i in range(n):
+    x = (2.0 * i + 1.0) / (2.0 * n)
+    y = 0.5
+    circles[i] = [x, y, radius]
+
+return circles
 """
-    
-    PROBLEM_PROMPT = f"""
+
+PROBLEM_PROMPT = f"""
 You are an expert computational geometry programmer. Your task is to solve a circle packing problem.
 The goal is to place 26 non-overlapping circles inside a 1x1 unit square to maximize the sum of their radii.
 
@@ -346,25 +374,25 @@ Here is a template to start from. Improve the logic to find a better packing. Yo
 {SEED_CODE}
 Output only the raw, complete Python code in a single code block.
 """
-    
-    evolver = LLMAgentEvolver(
-        problem_description=PROBLEM_PROMPT,
-        model_name=MODEL_TO_USE,
-        n_queries=300,  # This is your LLM call budget
-        mu=5,
-        strategy='(mu,lambda)'
-    )
-    
-    history = evolver.search()
-    
-    if history:
-        print("\n\n--- Evolution Complete ---")
-        best_solution = history[-1]
-        print(f"Best fitness (MSE) found: {best_solution['fitness']:.4f}")
-        print("Best code found:")
-        print("```python")
-        print(best_solution['code'])
-        print("```")
-    else:
-        print("\n\n--- Evolution Complete ---")
-        print("No valid solutions were found.")
+
+evolver = LLMAgentEvolver(
+    problem_description=PROBLEM_PROMPT,
+    model_name=MODEL_TO_USE,
+    n_queries=50,  # This is your LLM call budget
+    mu=5,
+    strategy='(mu,lambda)'
+)
+
+history = evolver.search()
+
+if history:
+    print("\n\n--- Evolution Complete ---")
+    best_solution = history[-1]
+    print(f"Best fitness (MSE) found: {best_solution['fitness']:.4f}")
+    print("Best code found:")
+    print("```python")
+    print(best_solution['code'])
+    print("```")
+else:
+    print("\n\n--- Evolution Complete ---")
+    print("No valid solutions were found.")
