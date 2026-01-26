@@ -161,7 +161,7 @@ class LLMAgentEvolver:
             current_query_num = self.query_calls
         print(f"--- LLM Query #{current_query_num}/{self.n_queries} ---")
         try:
-            llm_instance = LLM(query=prompt, model=self.model_name, temperature=0.7)
+            llm_instance = LLM(query=prompt, model=self.model_name, temperature=1)
             response_text = llm_instance.get_response()
             if response_text is None: return ""
             if not expect_code:
@@ -272,7 +272,7 @@ class LLMAgentEvolver:
             print(f"\n--- PSO Iteration {iteration} | LLM Queries: {self.query_calls}/{self.n_queries} ---")
 
             # 1. Generate new code for each agent in parallel
-            with ThreadPoolExecutor(max_workers=10) as executor:
+            with ThreadPoolExecutor(max_workers=1) as executor:
                 new_codes = list(executor.map(self._pso_update_worker, self.population))
 
             # 2. Evaluate and Repair the new solutions
@@ -283,7 +283,7 @@ class LLMAgentEvolver:
 
             evaluated_agents = self._evaluate_population(new_agents)
             repaired_agents = []
-            with ThreadPoolExecutor(max_workers=10) as executor:
+            with ThreadPoolExecutor(max_workers=1) as executor:
                 repaired_agents = list(executor.map(self._repair_agent_worker, evaluated_agents))
 
             # --- 3. NEW STEP: Enforce Diversity ---
@@ -311,9 +311,13 @@ class LLMAgentEvolver:
 
 if __name__ == '__main__':
     #MODEL_TO_USE = 'google/gemini-pro'
-    MODEL_TO_USE = 'google/gemini-flash'
+    #MODEL_TO_USE = 'google/gemini-flash'
     #MODEL_TO_USE = "lbl/cborg-mini"
     #MODEL_TO_USE = "lbl/cborg-chat:latest"
+    MODEL_TO_USE = 'lbl/cborg-coder'
+    #MODEL_TO_USE = "lbl/cborg-chat:latest"
+    MODEL_TO_USE = 'openai/gpt-5-nano'
+
 
 
 
