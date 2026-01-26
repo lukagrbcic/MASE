@@ -283,7 +283,7 @@ class LLMAgentEvolver:
 
             evaluated_agents = self._evaluate_population(new_agents)
             repaired_agents = []
-            with ThreadPoolExecutor(max_workers=1) as executor:
+            with ThreadPoolExecutor(max_workers=10) as executor:
                 repaired_agents = list(executor.map(self._repair_agent_worker, evaluated_agents))
 
             # --- 3. NEW STEP: Enforce Diversity ---
@@ -316,7 +316,7 @@ if __name__ == '__main__':
     #MODEL_TO_USE = "lbl/cborg-chat:latest"
     MODEL_TO_USE = 'lbl/cborg-coder'
     #MODEL_TO_USE = "lbl/cborg-chat:latest"
-    MODEL_TO_USE = 'openai/gpt-5-nano'
+    #MODEL_TO_USE = 'openai/gpt-5-nano'
 
 
 
@@ -368,7 +368,7 @@ if __name__ == '__main__':
     evolver = LLMAgentEvolver(
         problem_description=PROBLEM_PROMPT,
         model_name=MODEL_TO_USE,
-        n_queries=500,
+        n_queries=200,
         population_size=10,
     )
     best_solution = evolver.search()
