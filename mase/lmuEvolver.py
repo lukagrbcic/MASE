@@ -18,7 +18,7 @@ client = openai.OpenAI(
 )
 
 class LLM:
-    def __init__(self, query, model, temperature=1.0):
+    def __init__(self, query, model, temperature=0.75):
         self.query = query
         self.model = model
         self.temperature = temperature
@@ -85,16 +85,15 @@ def evaluation_server(code_string: str) -> float:
 
 class LLMAgentEvolver:
     
-    def __init__(self, problem_description, model_name, n_queries, mu, strategy='(mu,lambda)', seed=None):
+    def __init__(self, problem_description, model_name, n_queries, mu, strategy='(mu,lambda)'):
+
         self.problem_description = problem_description
         self.model_name = model_name
         self.n_queries = n_queries
         self.mu = mu
         self.strategy = strategy
-        self.seed = seed
-        if self.seed is None: self.seed = random.randint(1, 1e5)
-        random.seed(self.seed)
-        np.random.seed(self.seed)
+
+
         self.lambda_ = int(2*mu)
         self.best_agents_history = []
         
