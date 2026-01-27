@@ -92,7 +92,7 @@ def evaluation_server(code_string: str) -> tuple[float, str | None]:
         # We create a single scope dictionary and use it for both globals and locals.
         # This ensures the function defined inside exec can see the modules imported inside exec.
         mean_fitness = []
-        for i in range(3):
+        for i in range(20):
             scope = {}
             exec(code_string, scope)
             # ---------------------
@@ -148,9 +148,48 @@ class LLMAgentEvolver:
         return population
 
     def _repair_agent_worker(self, agent):
+        """Attempts to repair a single agent that failed evaluation."""
         if agent.get('fitness', float('inf')) != float('inf'):
-            return agent
-        # (Repair logic is unchanged)
+            return agent # Agent is already valid, no repair needed
+
+        print(f"--- Attempting to repair code with error: {agent.get('error')} ---")
+        current_code, current_error = agent['code'], agent['error']
+
+        for i in range(self.max_repair_attempts):
+            if self.query_calls >= self.n_queries:
+                print("Query budget exhausted, skipping repair.")
+                break
+
+            repair_prompt = f"""
+    You are an expert Python programmer and debugger. The following code for a circle packing problem has a bug.
+    Your task is to fix the code to resolve the error.
+
+    Problem Description: Place 26 non-overlapping circles in a 1x1 unit square to maximize the sum of their radii.
+
+    The faulty code is:
+    ```python
+    {current_code}
+    When executed, it produced this error:
+    "{current_error}"
+
+    Fix the bug that caused this error. Output only the raw, complete, corrected Python code.
+    Please DON'T FORGET TO ADD imports to the start of the code!'
+    """
+            fixed_code = self._llm_query(repair_prompt)
+            if not fixed_code:
+                continue
+            fitness, error = evaluation_server(fixed_code)
+
+
+            if fitness != float('inf'):
+                print(f"--- Repair successful after {i+1} attempt(s)! ---")
+                agent.update({'code': fixed_code, 'fitness': fitness, 'error': None})
+                return agent # Success: return the updated agent
+            else:
+                print(f"--- Repair attempt {i+1} failed. New error: {error} ---")
+                # Update code and error for the *next* iteration of the loop
+                current_code, current_error = fixed_code, error
+
         return agent
 
     # --- MODIFIED: Added expect_code flag ---
@@ -286,11 +325,13 @@ class LLMAgentEvolver:
             with ThreadPoolExecutor(max_workers=10) as executor:
                 repaired_agents = list(executor.map(self._repair_agent_worker, evaluated_agents))
 
-            # --- 3. NEW STEP: Enforce Diversity ---
+
+          # --- 3. NEW STEP: Enforce Diversity ---
             diverse_repaired_agents = self._filter_for_diversity_with_agent(repaired_agents)
             if not diverse_repaired_agents:
                 print("No diverse agents were found to update the population.")
                 continue
+
 
             # --- 4. MODIFIED STEP: Update based on the DIVERSE set ---
             for agent, new_solution in zip(self.population, diverse_repaired_agents):
@@ -305,16 +346,18 @@ class LLMAgentEvolver:
                         self.g_best['fitness'] = new_solution['fitness']
                         print(f"!!! New Global Best Found !!! Fitness: {self.g_best['fitness']:.4f}")
 
+
+
             print(f"End of Iteration {iteration}. Global best fitness so far: {self.g_best['fitness']:.4f}")
 
         return self.g_best
 
 if __name__ == '__main__':
     #MODEL_TO_USE = 'google/gemini-pro'
-    #MODEL_TO_USE = 'google/gemini-flash'
+    MODEL_TO_USE = 'google/gemini-flash'
     #MODEL_TO_USE = "lbl/cborg-mini"
     #MODEL_TO_USE = "lbl/cborg-chat:latest"
-    MODEL_TO_USE = 'lbl/cborg-coder'
+    #MODEL_TO_USE = 'lbl/cborg-coder'
     #MODEL_TO_USE = "lbl/cborg-chat:latest"
     #MODEL_TO_USE = 'openai/gpt-5-nano'
 
@@ -334,14 +377,6 @@ if __name__ == '__main__':
     \"\"\"
     n = 26
     circles = np.zeros((n, 3))
-
-    # A very simple initial guess: place circles along a line. This is a bad but valid start.
-    # This gives the LLM something concrete to improve upon.
-    radius = 1.0 / (2.0 * n)
-    for i in range(n):
-        x = (2.0 * i + 1.0) / (2.0 * n)
-        y = 0.5
-        circles[i] = [x, y, radius]
 
     return circles
     """
@@ -372,6 +407,7 @@ if __name__ == '__main__':
         population_size=10,
     )
     best_solution = evolver.search()
+    print (best_solution)
     if best_solution and best_solution.get('fitness') != float('inf'):
         print("\n\n--- Evolution Complete ---")
         print(f"Best fitness (neg_radii_sum) found: {best_solution['fitness']:.4f}")
@@ -383,26 +419,26 @@ if __name__ == '__main__':
         print("\n\n--- Evolution Complete ---")
         print("No valid solutions were found.")
 
-    import matplotlib
-    matplotlib.use('Agg')
-    def plot_final_packing(circles: np.ndarray, radii_sum: float):
-        fig, ax = plt.subplots(figsize=(8, 8))
-        ax.set_aspect('equal', adjustable='box')
-        ax.set_xlim(-0.1, 1.1)
-        ax.set_ylim(-0.1, 1.1)
-        ax.set_title(f"Final Circle Packing\nSum of Radii: {radii_sum:.6f}", fontsize=16)
-        ax.add_patch(Rectangle((0, 0), 1, 1, fill=None, edgecolor='black', lw=2))
-        for x, y, r in circles:
-            circle = Circle((x, y), r, facecolor='lightblue', edgecolor='darkblue', lw=1.5, alpha=0.8)
-            ax.add_patch(circle)
-        plt.grid(True, linestyle='--', alpha=0.6)
-        plt.savefig('test.pdf')
+    #import matplotlib
+    #matplotlib.use('Agg')
+    #def plot_final_packing(circles: np.ndarray, radii_sum: float):
+        #fig, ax = plt.subplots(figsize=(8, 8))
+        #ax.set_aspect('equal', adjustable='box')
+        #ax.set_xlim(-0.1, 1.1)
+        #ax.set_ylim(-0.1, 1.1)
+        #ax.set_title(f"Final Circle Packing\nSum of Radii: {radii_sum:.6f}", fontsize=16)
+        #ax.add_patch(Rectangle((0, 0), 1, 1, fill=None, edgecolor='black', lw=2))
+        #for x, y, r in circles:
+            #circle = Circle((x, y), r, facecolor='lightblue', edgecolor='darkblue', lw=1.5, alpha=0.8)
+            #ax.add_patch(circle)
+        #plt.grid(True, linestyle='--', alpha=0.6)
+        #plt.savefig('test.pdf')
 
-    if best_solution and best_solution.get('fitness') != float('inf'):
-        print("\nGenerating plot of the final solution...")
-        scope = {}
-        exec(best_solution['code'], scope)
-        model_func = scope[TARGET_FUNCTION_NAME]
-        final_circles = np.array(model_func())
-        final_radii_sum = np.sum(final_circles[:, -1])
-        plot_final_packing(final_circles, final_radii_sum)
+    #if best_solution and best_solution.get('fitness') != float('inf'):
+        #print("\nGenerating plot of the final solution...")
+        #scope = {}
+        #exec(best_solution['code'], scope)
+        #model_func = scope[TARGET_FUNCTION_NAME]
+        #final_circles = np.array(model_func())
+        #final_radii_sum = np.sum(final_circles[:, -1])
+        #plot_final_packing(final_circles, final_radii_sum)
