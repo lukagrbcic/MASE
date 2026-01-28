@@ -203,11 +203,11 @@ class LLMAgentEvolver:
 
         return self._evaluate_population(population)
         
-    def _recombination_worker(self, parent_pair):
-        """Worker function to perform recombination for a pair of parents."""
-        p1, p2 = parent_pair
-        recombine_prompt = f"Here are two Python solutions for a problem. Combine their best ideas to create a superior one! {self.mutate_recombine_context}. Do not rename anything, keep the format as is,  output only the raw code.\n\nSolution A (fitness: {p1['fitness']:.4f}):\n```python\n{p1['code']}\n```\n\nSolution B (fitness: {p2['fitness']:.4f}):\n```python\n{p2['code']}\n```"
-        return self._llm_query(recombine_prompt)
+    #def _recombination_worker(self, parent_pair):
+        #"""Worker function to perform recombination for a pair of parents."""
+        #p1, p2 = parent_pair
+        #recombine_prompt = f"Here are two Python solutions for a problem. Combine their best ideas to create a superior one! {self.mutate_recombine_context}. Do not rename anything, keep the format as is,  output only the raw code.\n\nSolution A (fitness: {p1['fitness']:.4f}):\n```python\n{p1['code']}\n```\n\nSolution B (fitness: {p2['fitness']:.4f}):\n```python\n{p2['code']}\n```"
+        #return self._llm_query(recombine_prompt)
 
     def _tournament_selection(self, population, k=3):
         """
@@ -230,41 +230,89 @@ class LLMAgentEvolver:
         return selected_parents
         
 
-    def _mutation_worker(self, recombined_code):
-        if not recombined_code: return ""
+    #def _mutation_worker(self, recombined_code):
+        #if not recombined_code: return ""
 
-        # Check if we should use Global Best as inspiration
+        ## Check if we should use Global Best as inspiration
+        #use_inspiration = False
+        #global_best_code = ""
+
+        ## We access best_agents_history safely (reading is generally thread-safe in Python lists)
+        #if self.best_agents_history and self.best_agents_history[-1]['fitness'] != float('inf'):
+            #if random.random() < self.inspiration_prob:
+                #use_inspiration = True
+                #global_best_code = self.best_agents_history[-1]['code']
+
+        #if use_inspiration and global_best_code:
+            #mutate_prompt = f"""
+#Critically analyze and improve this candidate Python code.
+#{self.mutate_recombine_context}.
+
+#REFERENCE: Here is the current Best Known Solution (Global Best).
+#You may borrow logic or style from it, but try to improve upon the candidate code specifically.
+#Global Best:
+#```python
+#{global_best_code}
+#```
+
+#Candidate Code to Improve:
+#```python
+#{recombined_code}
+#```
+#Output only the raw, improved code.
+#"""
+        #else:
+            #mutate_prompt = f"Critically analyze and improve this Python code. {self.mutate_recombine_context}. Output only the raw, improved code.\n\nCode:\n```python\n{recombined_code}\n```"
+
+        #return self._llm_query(mutate_prompt)
+
+
+    def _crossover_and_mutate_worker(self, parent_pair):
+        """
+        Combines Recombination and Mutation into a single LLM call.
+        """
+        p1, p2 = parent_pair
+
+        # Logic to check if we should use Global Best as inspiration (from your original mutation worker)
         use_inspiration = False
         global_best_code = ""
-
-        # We access best_agents_history safely (reading is generally thread-safe in Python lists)
         if self.best_agents_history and self.best_agents_history[-1]['fitness'] != float('inf'):
             if random.random() < self.inspiration_prob:
                 use_inspiration = True
                 global_best_code = self.best_agents_history[-1]['code']
 
+        # Construct the Prompt
+        # Base instruction: Combine parents
+        prompt = f"""
+        You are an expert Python developer.
+        Task 1 (Recombination): Combine the best ideas from the two Parent solutions below to create a superior merged solution.
+        Task 2 (Mutation): {self.mutate_recombine_context} - Critically analyze the merged result and improve it.
+
+        Parent A (fitness: {p1['fitness']:.4f}):
+        ```python
+        {p1['code']}
+        ```
+
+        Parent B (fitness: {p2['fitness']:.4f}):
+        ```python
+        {p2['code']}
+        ```
+        """
+
+        # Add Global Best context if applicable
         if use_inspiration and global_best_code:
-            mutate_prompt = f"""
-Critically analyze and improve this candidate Python code.
-{self.mutate_recombine_context}.
+            prompt += f"""
+        REFERENCE: Here is the current Best Known Solution (Global Best).
+        You may borrow logic or style from it to improve the offspring.
+        Global Best:
+        ```python
+        {global_best_code}
+        ```
+        """
 
-REFERENCE: Here is the current Best Known Solution (Global Best).
-You may borrow logic or style from it, but try to improve upon the candidate code specifically.
-Global Best:
-```python
-{global_best_code}
-```
+        prompt += "\nOutput only the raw, complete, combined, and improved Python code."
 
-Candidate Code to Improve:
-```python
-{recombined_code}
-```
-Output only the raw, improved code.
-"""
-        else:
-            mutate_prompt = f"Critically analyze and improve this Python code. {self.mutate_recombine_context}. Output only the raw, improved code.\n\nCode:\n```python\n{recombined_code}\n```"
-
-        return self._llm_query(mutate_prompt)
+        return self._llm_query(prompt)
 
     def search(self):
         MAX_LLM_WORKERS = self.n_jobs_query
@@ -307,17 +355,19 @@ Output only the raw, improved code.
             # Standard Evolution Flow
             queries_left = self.n_queries - self.query_calls
             offspring_to_generate = min(self.lambda_, queries_left // 2)
-            print ('offsprings to generate', offspring_to_generate)
             if offspring_to_generate <= 0: break
 
-            # Parallel Recombination
+            ## Parallel Recombination
             parent_pairs = [random.sample(parents, 2) for _ in range(offspring_to_generate)]
-            with ThreadPoolExecutor(max_workers=MAX_LLM_WORKERS) as executor:
-                recombined_codes = list(executor.map(self._recombination_worker, parent_pairs))
+            #with ThreadPoolExecutor(max_workers=MAX_LLM_WORKERS) as executor:
+                #recombined_codes = list(executor.map(self._recombination_worker, parent_pairs))
 
-            # Parallel Mutation (Includes Strategy 2: Inspiration)
+            ## Parallel Mutation (Includes Strategy 2: Inspiration)
+            #with ThreadPoolExecutor(max_workers=MAX_LLM_WORKERS) as executor:
+                #mutated_codes = list(executor.map(self._mutation_worker, recombined_codes))
+
             with ThreadPoolExecutor(max_workers=MAX_LLM_WORKERS) as executor:
-                mutated_codes = list(executor.map(self._mutation_worker, recombined_codes))
+                mutated_codes = list(executor.map(self._crossover_and_mutate_worker, parent_pairs))
 
             # Evaluation
             offspring = [{'code': code, 'fitness': None, 'error': None} for code in mutated_codes if code]
