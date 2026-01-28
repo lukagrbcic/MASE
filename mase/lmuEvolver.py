@@ -8,7 +8,9 @@ import os
 import re as re
 import sys
 import threading
-from evaluatorServer import algorithm_analysis
+from evaluator import evaluate_code
+
+
 
 client = openai.OpenAI(
     api_key = os.environ.get('CBORG_API_KEY'),
@@ -83,11 +85,8 @@ class LLMAgentEvolver:
 
     def _evaluate_population(self, population):
         codes_to_evaluate = [agent['code'] for agent in population]
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            # executor.map now returns tuples of (fitness, error)
-            #results = list(executor.map(evaluation_server, codes_to_evaluate))
+        with ThreadPoolExecutor(max_workers=4) as executor:
             results = list(executor.map(self.evaluator, codes_to_evaluate))
-
         for agent, (fitness, error) in zip(population, results):
             agent['fitness'] = fitness
             agent['error'] = error
@@ -118,7 +117,8 @@ class LLMAgentEvolver:
     "{current_error}"
     
     Fix the bug that caused this error. Output only the raw, complete, corrected Python code.
-    Please DON'T FORGET TO ADD imports to the start of the code!'
+    Please DON'T FORGET TO ADD imports to the start of the code! Do not rename anything, keep the format as is, just focus on the error!
+'
     """
             fixed_code = self._llm_query(repair_prompt)
             if not fixed_code:
@@ -162,7 +162,7 @@ class LLMAgentEvolver:
     def _initialize_population(self):
         print(f"Initializing population of size {self.mu}...")
         prompts = [self.problem_description] * self.mu
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             initial_codes = list(executor.map(self._llm_query, prompts))
         
         population = [{'code': code, 'fitness': None} for code in initial_codes if code]
@@ -171,17 +171,17 @@ class LLMAgentEvolver:
     def _recombination_worker(self, parent_pair):
         """Worker function to perform recombination for a pair of parents."""
         p1, p2 = parent_pair
-        recombine_prompt = f"Here are two Python solutions for a problem. Combine their best ideas to create a superior one. Output only the raw code.\n\nSolution A (fitness: {p1['fitness']:.4f}):\n```python\n{p1['code']}\n```\n\nSolution B (fitness: {p2['fitness']:.4f}):\n```python\n{p2['code']}\n```"
+        recombine_prompt = f"Here are two Python solutions for a problem. Combine their best ideas to create a superior one with respect to the sampling efficiency! Do not rename anything, keep the format as is,  Output only the raw code.\n\nSolution A (fitness: {p1['fitness']:.4f}):\n```python\n{p1['code']}\n```\n\nSolution B (fitness: {p2['fitness']:.4f}):\n```python\n{p2['code']}\n```"
         return self._llm_query(recombine_prompt)
 
     def _mutation_worker(self, recombined_code):
         """Worker function to perform mutation on a single code string."""
         if not recombined_code: return ""
-        mutate_prompt = f"Critically analyze and improve this Python code. Fix bugs, improve logic, or make it more accurate. Output only the raw, improved code.\n\nCode:\n```python\n{recombined_code}\n```"
+        mutate_prompt = f"Critically analyze and improve this Python code. Improve the sampling efficiency of the approach!. Do not rename anything, keep the format as is, Output only the raw, improved code.\n\nCode:\n```python\n{recombined_code}\n```"
         return self._llm_query(mutate_prompt)
     
     def search(self):
-        MAX_LLM_WORKERS = 1
+        MAX_LLM_WORKERS = 10
         parents = self._initialize_population()
         if not parents:
             print("Initialization failed to produce any valid code. Stopping.")
@@ -240,8 +240,8 @@ class LLMAgentEvolver:
 
 # Example Usage
 #if __name__ == '__main__':
-MODEL_TO_USE = "lbl/cborg-coder:latest"
-#MODEL_TO_USE = 'google/gemini-flash'
+#MODEL_TO_USE = "lbl/cborg-coder:latest"
+MODEL_TO_USE = 'google/gemini-flash'
 #MODEL_TO_USE = 'lbl/cborg-coder'
 
 #MODEL_TO_USE = 'xai/grok-mini'
@@ -261,32 +261,32 @@ MODEL_TO_USE = "lbl/cborg-coder:latest"
 
 PROBLEM_PROMPT = """This a code I use in my sampling loop with Random Forests. It is a random sampling approach at the moment.
 
-            import numpy as np
-            import random
-            from sklearn.ensemble import RandomForestRegressor
+import numpy as np
+import random
+from sklearn.ensemble import RandomForestRegressor
 
-            np.random.seed(random.randint(0, 10223))
+np.random.seed(random.randint(0, 10223))
 
 
-            class modelSampler:
+class modelSampler:
 
-                def __init__(self,  X, y, sample_size, lb, ub):
+    def __init__(self,  X, y, sample_size, lb, ub):
 
-                    self.X = X
-                    self.y = y
-                    self.sample_size = sample_size
-                    self.lb = lb
-                    self.ub = ub
+        self.X = X
+        self.y = y
+        self.sample_size = sample_size
+        self.lb = lb
+        self.ub = ub
 
-                    self.model = RandomForestRegressor().fit(self.X, self.y)
+        self.model = RandomForestRegressor().fit(self.X, self.y)
 
-                def gen_samples(self):
+    def gen_samples(self):
 
-                    n = self.sample_size
-                    d = len(self.lb)
-                    sample_set = np.array([np.random.uniform(self.lb, self.ub, d) for i in range(n)])
+        n = self.sample_size
+        d = len(self.lb)
+        sample_set = np.array([np.random.uniform(self.lb, self.ub, d) for i in range(n)])
 
-                    return sample_set, self.model
+        return sample_set, self.model
 
 
             # =============================================================================
@@ -366,8 +366,8 @@ evolver = LLMAgentEvolver(
     problem_description=PROBLEM_PROMPT,
     model_name=MODEL_TO_USE,
     n_queries=200,
-    mu=2,
-    evaluator=algorithm_analysis,
+    mu=10,
+    evaluator=evaluate_code,
     strategy='(mu,lambda)'
 )
 
