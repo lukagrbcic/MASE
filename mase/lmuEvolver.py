@@ -307,6 +307,7 @@ Output only the raw, improved code.
             # Standard Evolution Flow
             queries_left = self.n_queries - self.query_calls
             offspring_to_generate = min(self.lambda_, queries_left // 2)
+            print ('offsprings to generate', offspring_to_generate)
             if offspring_to_generate <= 0: break
 
             # Parallel Recombination
