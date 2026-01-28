@@ -18,7 +18,9 @@ def evaluate_code(generated_code_string: str) -> tuple:
         A tuple: (score, True) on success.
         A tuple: (-1, error_message) for any type of failure.
     """
-    project_path = "SpherePacking"
+    project_path = "SpherePacking32"
+    #project_path = "ActiveLearningExperiment"
+
 
     # Check if the source project directory exists before starting.
     if not os.path.isdir(project_path):
@@ -30,8 +32,8 @@ def evaluate_code(generated_code_string: str) -> tuple:
             # Setup the sandbox environment
             project_in_sandbox_path = os.path.join(sandbox_dir, os.path.basename(project_path))
             shutil.copytree(project_path, project_in_sandbox_path)
-
             target_file_path = os.path.join(project_in_sandbox_path, "sphere_packing.py")
+            #target_file_path = os.path.join(project_in_sandbox_path, "src/samplers/model_sampler.py")
             with open(target_file_path, "w") as f:
                 f.write(generated_code_string)
 
