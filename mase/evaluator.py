@@ -4,6 +4,8 @@ import tempfile
 import os
 import sys
 
+
+
 def evaluate_code(generated_code_string: str) -> tuple:
     """
     Evaluates generated code within a project sandbox and returns a simple
@@ -16,7 +18,7 @@ def evaluate_code(generated_code_string: str) -> tuple:
         A tuple: (score, True) on success.
         A tuple: (-1, error_message) for any type of failure.
     """
-    project_path = "ActiveLearningExperiment"
+    project_path = "SpherePacking"
 
     # Check if the source project directory exists before starting.
     if not os.path.isdir(project_path):
@@ -29,12 +31,12 @@ def evaluate_code(generated_code_string: str) -> tuple:
             project_in_sandbox_path = os.path.join(sandbox_dir, os.path.basename(project_path))
             shutil.copytree(project_path, project_in_sandbox_path)
 
-            target_file_path = os.path.join(project_in_sandbox_path, "src/samplers/model_sampler.py")
+            target_file_path = os.path.join(project_in_sandbox_path, "sphere_packing.py")
             with open(target_file_path, "w") as f:
                 f.write(generated_code_string)
 
             # Execute the project's main script
-            command = [sys.executable, "run_AL.py"]
+            command = [sys.executable, "get_result.py"]
             process = subprocess.run(
                 command,
                 cwd=project_in_sandbox_path,
@@ -42,7 +44,6 @@ def evaluate_code(generated_code_string: str) -> tuple:
                 text=True,
                 timeout=300  # 5-minute timeout
             )
-
 
             if process.returncode != 0:
                 # FAILURE: The script crashed or exited with an error code.
@@ -57,7 +58,7 @@ def evaluate_code(generated_code_string: str) -> tuple:
                     if line.strip().startswith("PERFORMANCE_SCORE:"):
                         # SUCCESS! We found the score.
                         score = float(line.strip().split(":")[1])
-                        return (score, True)
+                        return (-1*score, True)
 
                 # FAILURE: The script ran but did not output the required score line.
                 error_output = f"Script ran successfully but did not output a 'PERFORMANCE_SCORE:' line. Full output:\n{output.strip()}"

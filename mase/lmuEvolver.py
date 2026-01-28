@@ -10,8 +10,6 @@ import sys
 import threading
 from evaluator import evaluate_code
 
-
-
 client = openai.OpenAI(
     api_key = os.environ.get('CBORG_API_KEY'),
     base_url = "https://api.cborg.lbl.gov"
@@ -48,15 +46,32 @@ class LLM:
 
 class LLMAgentEvolver:
     
-    def __init__(self, problem_description, model_name, n_queries, mu, evaluator, strategy='(mu,lambda)', max_repair_attempts=1):
+    def __init__(self, problem_description, model_name,
+                 n_queries, mu, evaluator,
+                 mutate_recombine_context,
+                 strategy='(mu,lambda)',
+                 max_repair_attempts=1,
+                 n_jobs_eval=1,
+                 n_jobs_query=1,
+                 memetic_period=2,
+                 inspiration_prob=0.5,
+                 tournament_selection_k=0,
+                 temperature=0.75):
 
         self.problem_description = problem_description
         self.model_name = model_name
         self.n_queries = n_queries
         self.mu = mu
         self.evaluator = evaluator
+        self.mutate_recombine_context = mutate_recombine_context
         self.strategy = strategy
         self.max_repair_attempts = max_repair_attempts 
+        self.n_jobs_eval = n_jobs_eval
+        self.n_jobs_query = n_jobs_query
+        self.memetic_period = memetic_period
+        self.inspiration_prob = inspiration_prob
+        self.tournament_selection_k = tournament_selection_k
+        self.temperature = temperature
 
         self.lambda_ = int(2*mu)
         self.best_agents_history = []
@@ -82,17 +97,31 @@ class LLMAgentEvolver:
         else:
             self.best_agents_history.append(self.best_agents_history[-1])
 
-
     def _evaluate_population(self, population):
         codes_to_evaluate = [agent['code'] for agent in population]
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=self.n_jobs_eval) as executor:
             results = list(executor.map(self.evaluator, codes_to_evaluate))
         for agent, (fitness, error) in zip(population, results):
             agent['fitness'] = fitness
             agent['error'] = error
         return population
-    
 
+    # --- STRATEGY 1: Memetic (Local Search) Worker ---
+    def _memetic_worker(self, agent_code):
+        memetic_prompt = f"""
+        You are an optimization expert. You have the current Global Best solution.
+        Your goal is to perform a local search: refactor, optimize, or handle edge cases better WITHOUT breaking existing functionality.
+        {self.mutate_recombine_context}
+        Make it perfect.
+
+        Current Best Code:
+        ```python
+        {agent_code}
+        ```
+        Output only the raw, optimized code.
+        """
+        return self._llm_query(memetic_prompt)
+    
     def _repair_agent_worker(self, agent):
         """Attempts to repair a single agent that failed evaluation."""
         if agent.get('fitness', float('inf')) != float('inf'):
@@ -118,13 +147,15 @@ class LLMAgentEvolver:
     
     Fix the bug that caused this error. Output only the raw, complete, corrected Python code.
     Please DON'T FORGET TO ADD imports to the start of the code! Do not rename anything, keep the format as is, just focus on the error!
-'
     """
             fixed_code = self._llm_query(repair_prompt)
             if not fixed_code:
                 continue
-            fitness, error = self.evaluator(fixed_code)
-            
+
+            temp_population = [{'code': fixed_code, 'fitness': None}]
+            evaluated_pop = self._evaluate_population(temp_population)
+            fitness = evaluated_pop[0]['fitness']
+            error = evaluated_pop[0]['error']
             
             if fitness != float('inf'):
                 print(f"--- Repair successful after {i+1} attempt(s)! ---")
@@ -148,7 +179,7 @@ class LLMAgentEvolver:
         print(f"--- LLM Query #{current_query_num}/{self.n_queries} ---")
         
         try:
-            llm_instance = LLM(query=prompt, model=self.model_name, temperature=0.7)
+            llm_instance = LLM(query=prompt, model=self.model_name, temperature=self.temperature)
             response_text = llm_instance.get_response()
             if response_text is None: return ""
             return llm_instance.get_code(response_text)
@@ -162,226 +193,197 @@ class LLMAgentEvolver:
     def _initialize_population(self):
         print(f"Initializing population of size {self.mu}...")
         prompts = [self.problem_description] * self.mu
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=self.n_jobs_query) as executor:
             initial_codes = list(executor.map(self._llm_query, prompts))
-        
+
         population = [{'code': code, 'fitness': None} for code in initial_codes if code]
+
         return self._evaluate_population(population)
         
     def _recombination_worker(self, parent_pair):
         """Worker function to perform recombination for a pair of parents."""
         p1, p2 = parent_pair
-        recombine_prompt = f"Here are two Python solutions for a problem. Combine their best ideas to create a superior one with respect to the sampling efficiency! Do not rename anything, keep the format as is,  Output only the raw code.\n\nSolution A (fitness: {p1['fitness']:.4f}):\n```python\n{p1['code']}\n```\n\nSolution B (fitness: {p2['fitness']:.4f}):\n```python\n{p2['code']}\n```"
+        recombine_prompt = f"Here are two Python solutions for a problem. Combine their best ideas to create a superior one! {self.mutate_recombine_context}. Do not rename anything, keep the format as is,  output only the raw code.\n\nSolution A (fitness: {p1['fitness']:.4f}):\n```python\n{p1['code']}\n```\n\nSolution B (fitness: {p2['fitness']:.4f}):\n```python\n{p2['code']}\n```"
         return self._llm_query(recombine_prompt)
 
+    def _tournament_selection(self, population, k=3):
+        """
+        Selects self.mu parents using tournament selection.
+        k: Tournament size (larger k = higher selection pressure, less diversity)
+        """
+        selected_parents = []
+        # We need to fill the parent slots
+        while len(selected_parents) < self.mu:
+            # 1. Pick k random individuals from the population
+            # (Use min in case population is smaller than k)
+            tournament_candidates = random.sample(population, min(k, len(population)))
+            
+            # 2. The winner is the one with the lowest fitness
+            winner = min(tournament_candidates, key=lambda x: x.get('fitness', float('inf')))
+            
+            # 3. Add winner to new parents (Note: standard tournament allows duplicates)
+            selected_parents.append(winner)
+            
+        return selected_parents
+        
+
     def _mutation_worker(self, recombined_code):
-        """Worker function to perform mutation on a single code string."""
         if not recombined_code: return ""
-        mutate_prompt = f"Critically analyze and improve this Python code. Improve the sampling efficiency of the approach!. Do not rename anything, keep the format as is, Output only the raw, improved code.\n\nCode:\n```python\n{recombined_code}\n```"
+
+        # Check if we should use Global Best as inspiration
+        use_inspiration = False
+        global_best_code = ""
+
+        # We access best_agents_history safely (reading is generally thread-safe in Python lists)
+        if self.best_agents_history and self.best_agents_history[-1]['fitness'] != float('inf'):
+            if random.random() < self.inspiration_prob:
+                use_inspiration = True
+                global_best_code = self.best_agents_history[-1]['code']
+
+        if use_inspiration and global_best_code:
+            mutate_prompt = f"""
+Critically analyze and improve this candidate Python code.
+{self.mutate_recombine_context}.
+
+REFERENCE: Here is the current Best Known Solution (Global Best).
+You may borrow logic or style from it, but try to improve upon the candidate code specifically.
+Global Best:
+```python
+{global_best_code}
+```
+
+Candidate Code to Improve:
+```python
+{recombined_code}
+```
+Output only the raw, improved code.
+"""
+        else:
+            mutate_prompt = f"Critically analyze and improve this Python code. {self.mutate_recombine_context}. Output only the raw, improved code.\n\nCode:\n```python\n{recombined_code}\n```"
+
         return self._llm_query(mutate_prompt)
-    
+
     def search(self):
-        MAX_LLM_WORKERS = 10
+        MAX_LLM_WORKERS = self.n_jobs_query
         parents = self._initialize_population()
         if not parents:
-            print("Initialization failed to produce any valid code. Stopping.")
+            print("Initialization failed.")
             return []
-            
-        parents.sort(key=lambda x: x.get('fitness', float('inf')))
+
         self._archive(parents)
-        
+
         generation = 0
         while self.query_calls < self.n_queries:
             generation += 1
-            print(f"\n--- Generation {generation} | LLM Queries: {self.query_calls}/{self.n_queries} ---")
+            print(f"\n--- Generation {generation} | Queries: {self.query_calls}/{self.n_queries} ---")
+
+            # --- STRATEGY 1: Memetic Step (Run periodically) ---
+            if (self.memetic_period > 0 and
+                generation % self.memetic_period == 0 and
+                self.best_agents_history and
+                self.best_agents_history[-1]['fitness'] != float('inf')):
+
+                print(f"--- Running Memetic Local Search on Global Best ---")
+                best_code = self.best_agents_history[-1]['code']
+                optimized_code = self._memetic_worker(best_code)
+
+                if optimized_code:
+                    temp_pop = [{'code': optimized_code, 'fitness': None}]
+                    eval_pop = self._evaluate_population(temp_pop)
+                    fit = eval_pop[0]['fitness']
+                    if fit < self.best_agents_history[-1]['fitness']:
+                        print(f"Memetic Search Success! Improved fitness to {fit:.4f}")
+                        # Immediately update archive
+                        self._archive([{'code': optimized_code, 'fitness': fit, 'error': None}])
+                    else:
+                        print("Memetic Search: No improvement found.")
+
+            # Check budget after memetic step
+            if self.query_calls >= self.n_queries: break
+
+            # Standard Evolution Flow
             queries_left = self.n_queries - self.query_calls
             offspring_to_generate = min(self.lambda_, queries_left // 2)
             if offspring_to_generate <= 0: break
-    
-            # --- Parallel Generation ---
+
+            # Parallel Recombination
             parent_pairs = [random.sample(parents, 2) for _ in range(offspring_to_generate)]
             with ThreadPoolExecutor(max_workers=MAX_LLM_WORKERS) as executor:
                 recombined_codes = list(executor.map(self._recombination_worker, parent_pairs))
+
+            # Parallel Mutation (Includes Strategy 2: Inspiration)
             with ThreadPoolExecutor(max_workers=MAX_LLM_WORKERS) as executor:
                 mutated_codes = list(executor.map(self._mutation_worker, recombined_codes))
-    
-            # --- Evaluation Step ---
+
+            # Evaluation
             offspring = [{'code': code, 'fitness': None, 'error': None} for code in mutated_codes if code]
             if not offspring: continue
             offspring = self._evaluate_population(offspring)
-    
-            # --- NEW: Repair Step ---
+
+            # Repair
             failed_offspring = [o for o in offspring if o['fitness'] == float('inf')]
-            print(f"--- Starting repair phase for {len(failed_offspring)} failed agents ---")
-            with ThreadPoolExecutor(max_workers=MAX_LLM_WORKERS) as executor:
-                # The map will run the repair worker on all offspring.
-                # It will instantly return the already-valid ones and work on the failed ones.
-                repaired_offspring = list(executor.map(self._repair_agent_worker, offspring))
-            
-            # --- Selection Step ---
-            combined_population = [p for p in (parents + repaired_offspring) if p['fitness'] != float('inf')]
-            if not combined_population: continue
-            
-            combined_population.sort(key=lambda x: x.get('fitness', float('inf')))
-            
-            if self.strategy == '(mu,lambda)':
-                valid_offspring = [o for o in repaired_offspring if o['fitness'] != float('inf')]
-                if valid_offspring:
-                    valid_offspring.sort(key=lambda x: x.get('fitness', float('inf')))
-                    parents = valid_offspring[:self.mu]
-            elif self.strategy == '(mu+lambda)':
-                parents = combined_population[:self.mu]
-            
-            self._archive(parents)
-            best_fitness_so_far = self.best_agents_history[-1]['fitness']
-            print(f"End of Generation {generation}. Best fitness so far: {best_fitness_so_far:.4f}")
-            
+            if failed_offspring:
+                print(f"--- Repairing {len(failed_offspring)} failed agents ---")
+                with ThreadPoolExecutor(max_workers=MAX_LLM_WORKERS) as executor:
+                    repaired_offspring = list(executor.map(self._repair_agent_worker, offspring))
+            else:
+                repaired_offspring = offspring
+
+            if self.tournament_selection_k == 0:
+
+                ### Selection
+                combined_population = [p for p in (parents + repaired_offspring) if p['fitness'] != float('inf')]
+                if not combined_population: continue
+
+                combined_population.sort(key=lambda x: x.get('fitness', float('inf')))
+
+                if self.strategy == '(mu,lambda)':
+                    valid_offspring = [o for o in repaired_offspring if o['fitness'] != float('inf')]
+                    if valid_offspring:
+                        valid_offspring.sort(key=lambda x: x.get('fitness', float('inf')))
+                        parents = valid_offspring[:self.mu]
+                    else:
+                        parents = combined_population[:self.mu] # Fallback
+                elif self.strategy == '(mu+lambda)':
+                    parents = combined_population[:self.mu]
+
+                self._archive(parents)
+                best_fitness_so_far = self.best_agents_history[-1]['fitness']
+                print(f"End of Generation {generation}. Best fitness so far: {best_fitness_so_far:.4f}")
+
+
+            else:
+                valid_repaired_offspring = [o for o in repaired_offspring if o['fitness'] != float('inf')]
+                valid_parents = [p for p in parents if p['fitness'] != float('inf')]
+
+                # Pool to select from
+                selection_pool = []
+
+                if self.strategy == '(mu,lambda)':
+                    # In (mu, lambda), we prefer selecting only from offspring.
+                    # If we have enough valid offspring, use them.
+                    if len(valid_repaired_offspring) >= self.mu:
+                        selection_pool = valid_repaired_offspring
+                    else:
+                        # Fallback: if not enough valid offspring, mix in parents to survive
+                        selection_pool = valid_parents + valid_repaired_offspring
+                elif self.strategy == '(mu+lambda)':
+                    # In (mu+lambda), we always select from the mix
+                    selection_pool = valid_parents + valid_repaired_offspring
+
+                if not selection_pool:
+                    print("No valid agents found this generation. Carrying over previous parents.")
+                    continue
+
+                # Perform Tournament Selection
+                parents = self._tournament_selection(selection_pool, k=self.tournament_selection_k)
+
+                # Update Archive (Global Best)
+                self._archive(parents)
+
+                best_fitness_so_far = self.best_agents_history[-1]['fitness']
+                print(f"End of Generation {generation}. Best fitness so far: {best_fitness_so_far:.4f}")
+
+
         return self.best_agents_history
-
-# Example Usage
-#if __name__ == '__main__':
-#MODEL_TO_USE = "lbl/cborg-coder:latest"
-MODEL_TO_USE = 'google/gemini-flash'
-#MODEL_TO_USE = 'lbl/cborg-coder'
-
-#MODEL_TO_USE = 'xai/grok-mini'
-
-
-
-#MODEL_TO_USE='google/gemini-flash'
-#MODEL_TO_USE ='anthropic/claude-haiku'
-#MODEL_TO_USE ='openai/o4-mini'
-#MODEL_TO_USE ='openai/o3-mini'
-#MODEL_TO_USE ='openai/gpt-5-mini'
-#MODEL_TO_USE ='lbl/cborg-coder:latest'
-#MODEL_TO_USE ='lbl/cborg-deepthought:latest'
-#MODEL_TO_USE = 'xai/grok-mini'
-
-
-
-PROBLEM_PROMPT = """This a code I use in my sampling loop with Random Forests. It is a random sampling approach at the moment.
-
-import numpy as np
-import random
-from sklearn.ensemble import RandomForestRegressor
-
-np.random.seed(random.randint(0, 10223))
-
-
-class modelSampler:
-
-    def __init__(self,  X, y, sample_size, lb, ub):
-
-        self.X = X
-        self.y = y
-        self.sample_size = sample_size
-        self.lb = lb
-        self.ub = ub
-
-        self.model = RandomForestRegressor().fit(self.X, self.y)
-
-    def gen_samples(self):
-
-        n = self.sample_size
-        d = len(self.lb)
-        sample_set = np.array([np.random.uniform(self.lb, self.ub, d) for i in range(n)])
-
-        return sample_set, self.model
-
-
-            # =============================================================================
-            # Active Learning Sampler Implementation
-            # =============================================================================
-            #
-            # WORKFLOW CONTEXT:
-            # -----------------
-            # This `modelSampler` class is part of a larger ACTIVE LEARNING LOOP.
-            # The loop operates iteratively as follows:
-            #   1. Call `gen_samples()` to select a new set of samples within bounds `lb` and `ub`.
-            #   2. Add these samples to the datasets `self.X` (features) and `self.y` (labels).
-            #   3. Retrain the model using the updated `self.X` and `self.y`.
-            #
-            # This process repeats many times — meaning the sampling algorithm must aim to:
-            #   - Improve the model not just in the current iteration, but OVER MULTIPLE FUTURE ITERATIONS.
-            #   - Select batches that maximize cumulative accuracy across the loop.
-            #
-            # The acquisition strategy must be effective in HIGH-DIMENSIONAL problems
-            # (e.g., expanding 3D input to 822D features).
-            #
-            # -----------------------------------------------------------------------------
-            #
-            # CURRENT BEHAVIOR:
-            # -----------------
-            # 1. `gen_samples()` returns a matrix `sample_set` with:
-            #       - Exactly `sample_size` rows
-            #       - Number of columns == length of `lb` and `ub`
-            # 2. `self.X` and `self.y` are datasets gathered so far in the active learning loop.
-            # 3. A model is initially trained on `self.X` and `self.y`.
-            # 4. The model is returned later for accuracy assessment.
-            #
-            # -----------------------------------------------------------------------------
-            #
-            # CONSTRAINTS:
-            # ------------
-            # - Keep the class name `modelSampler` and all method names unchanged (external code depends on them).
-            # - Preserve the exact return format and interface of `gen_samples()`.
-            # - `sample_size` is fixed and should not be changed. The returned `sample_set` must have `sample_size` number of rows.
-            # - Maintain the meaning of `lb` and `ub` as feature bounds.
-            # - Do NOT implement multiple strategies — only ONE algorithm should exist and be active at runtime.
-            # - Input/output behavior must remain exactly the same (shape, types).
-            # - Preserve full compatibility with the existing active learning workflow.
-            # - Do not use standalone random or any kind of sampling.
-            #
-            # -----------------------------------------------------------------------------
-            #
-            # GOALS:
-            # ------
-            # - Implement a single, innovative BATCHED ACTIVE LEARNING acquisition strategy.
-            #     ("Batched" = selecting multiple samples at once per iteration.)
-            # - Can adapt known acquisition functions (e.g., uncertainty sampling, diversity sampling)
-            #   or combine them creatively in a hybrid approach.
-            # - Minimize the number of samples required to reach high accuracy.
-            # - Model must have `.fit` and `.predict` methods (scikit-learn style) AND provide robust uncertainty estimates.
-            # - Code should be clear, maintainable, and computationally efficient for high-dimensional datasets.
-            # - The algorithm must consistently contribute to iterative improvements in the active learning loop.
-            #
-            # -----------------------------------------------------------------------------
-            #
-            # DELIVERABLES:
-            # -------------
-            # 1. Full Python code for the improved `modelSampler` (output as one complete code block).
-            # 2. Inline comments describing WHY each change improves performance or accuracy.
-            # 3. The algorithm implemented in `gen_samples()` must be directly used — no placeholders or optional code paths.
-            # 4. Code must be ready to run in the described active learning loop without interface changes.
-            # 5. Always respond ONLY with Python code inside a fenced code block like this:
-            #        ```python
-            #        # code here
-            #        ```
-            #
-            # =============================================================================
-
-            """
-
-evolver = LLMAgentEvolver(
-    problem_description=PROBLEM_PROMPT,
-    model_name=MODEL_TO_USE,
-    n_queries=200,
-    mu=10,
-    evaluator=evaluate_code,
-    strategy='(mu,lambda)'
-)
-
-history = evolver.search()
-
-if history:
-    print("\n\n--- Evolution Complete ---")
-    best_solution = history[-1]
-    print(f"Best fitness found: {best_solution['fitness']:.4f}")
-    print("Best code found:")
-    print("```python")
-    print(best_solution['code'])
-    print("```")
-else:
-    print("\n\n--- Evolution Complete ---")
-    print("No valid solutions were found.")
 
