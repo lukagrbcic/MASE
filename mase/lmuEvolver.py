@@ -73,6 +73,9 @@ class LLMAgentEvolver:
         self.tournament_selection_k = tournament_selection_k
         self.temperature = temperature
 
+        if self.tournament_selection_k > 0:
+            print ('Using tournament selection!')
+
         self.lambda_ = int(2*mu)
         self.best_agents_history = []
         
