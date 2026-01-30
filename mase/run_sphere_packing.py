@@ -13,7 +13,11 @@ from lmuEvolver import LLMAgentEvolver
 
 # Example Usage
 #MODEL_TO_USE = "lbl/cborg-coder:latest"
-MODEL_TO_USE = 'google/gemini-flash'
+#MODEL_TO_USE = "lbl/cborg-chat:latest"
+#MODEL_TO_USE = 'google/gemini-flash'
+MODEL_TO_USE = 'xai/grok-mini'
+#MODEL_TO_USE = "lbl/cborg-coder-base"
+
 
 
 SEED_CODE = """
@@ -62,13 +66,14 @@ evolver = LLMAgentEvolver(
     problem_description=PROBLEM_PROMPT,
     model_name=MODEL_TO_USE,
     n_queries=200,
-    mu=2,
+    mu=10,
     evaluator=evaluate_code,
     mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
-    max_repair_attempts=2,
+    max_repair_attempts=1,
     n_jobs_eval=10,
-    n_jobs_query=10,
-    strategy='(mu,lambda)'
+    n_jobs_query=1,
+    tournament_selection_k=0,
+    strategy='(mu+lambda)'
 )
 
 history = evolver.search()
