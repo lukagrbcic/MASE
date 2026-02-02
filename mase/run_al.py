@@ -7,11 +7,10 @@ import os
 import re as re
 import sys
 import threading
-from evaluator import evaluate_code
 from lmuEvolver import LLMAgentEvolver
 
 
-#MODEL_TO_USE = "lbl/cborg-coder:latest"
+MODEL_TO_USE = "lbl/cborg-coder:latest"
 MODEL_TO_USE = 'google/gemini-flash'
 #MODEL_TO_USE = 'lbl/cborg-coder'
 #MODEL_TO_USE ='anthropic/claude-haiku'
@@ -107,7 +106,6 @@ class modelSampler:
             #   or combine them creatively in a hybrid approach.
             # - Minimize the number of samples required to reach high accuracy.
             # - Model must have `.fit` and `.predict` methods (scikit-learn style) AND provide robust uncertainty estimates.
-            # - Can change the model (ensembles, deep learning etc.) as long as it provides some kind of uncertainty estimation.
             # - Code should be clear, maintainable, and computationally efficient for high-dimensional datasets.
             # - The algorithm must consistently contribute to iterative improvements in the active learning loop.
             #
@@ -132,17 +130,28 @@ class modelSampler:
 MUTATE_RECOMBINE_PROMPT = f"""You are an expert computational scientist. Implement a single, innovative BATCHED ACTIVE LEARNING acquisition strategy.
 The goal is to train the model with the minimum number of samples acquired from the experimental loop."""
 
+from evaluator import CodeEvaluator
+
+sphere_evaluator = CodeEvaluator(
+    project_path="ActiveLearningExperiment",
+    target_relative_path="src/samplers/model_sampler.py",
+    execution_script="run_AL.py"
+)
+
+code_evaluator = sphere_evaluator.evaluate
+
+
 evolver = LLMAgentEvolver(
     problem_description=PROBLEM_PROMPT,
     model_name=MODEL_TO_USE,
-    n_queries=200,
-    mu=10,
-    evaluator=evaluate_code,
+    n_queries=100,
+    mu=5,
+    evaluator=code_evaluator,
     mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
-    max_repair_attempts=1,
+    max_repair_attempts=2,
     n_jobs_eval=2,
-    n_jobs_query=2,
-    strategy='(mu,lambda)'
+    n_jobs_query=1,
+    strategy='(mu+lambda)'
 )
 
 history = evolver.search()
