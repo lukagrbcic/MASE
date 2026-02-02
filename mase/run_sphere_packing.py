@@ -12,10 +12,10 @@ from lmuEvolver import LLMAgentEvolver
 
 
 # Example Usage
-#MODEL_TO_USE = "lbl/cborg-coder:latest"
-#MODEL_TO_USE = "lbl/cborg-chat:latest"
+#MODEL_TO_USE = "lbl/cborg-deepthought:latest"
+MODEL_TO_USE = "lbl/cborg-chat:latest"
 #MODEL_TO_USE = 'google/gemini-flash'
-MODEL_TO_USE = 'xai/grok-mini'
+#MODEL_TO_USE = 'xai/grok-mini'
 #MODEL_TO_USE = "lbl/cborg-coder-base"
 
 
