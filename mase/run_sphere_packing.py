@@ -7,16 +7,18 @@ import os
 import re as re
 import sys
 import threading
-from evaluator import evaluate_code
 from lmuEvolver import LLMAgentEvolver
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 
 # Example Usage
 #MODEL_TO_USE = "lbl/cborg-deepthought:latest"
-MODEL_TO_USE = "lbl/cborg-chat:latest"
-#MODEL_TO_USE = 'google/gemini-flash'
+#MODEL_TO_USE = "lbl/cborg-chat:latest"
+MODEL_TO_USE = 'google/gemini-flash'
 #MODEL_TO_USE = 'xai/grok-mini'
-#MODEL_TO_USE = "lbl/cborg-coder-base"
+#MODEL_TO_USE = "lbl/cborg-mini"
 
 
 
@@ -62,30 +64,32 @@ Output only the raw, complete Python code in a single code block. Do not add any
 MUTATE_RECOMBINE_PROMPT = f"""You are an expert computational geometry programmer. Your task is to improve a solution for a circle packing problem.
 The goal is to place 26 non-overlapping circles inside a 1x1 unit square to maximize the sum of their radii."""
 
+from evaluator import CodeEvaluator
+
+sphere_evaluator = CodeEvaluator(
+    project_path="SpherePacking",
+    target_relative_path="sphere_packing.py",
+    execution_script="get_result.py"
+)
+
+code_evaluator = sphere_evaluator.evaluate
+
+
+
 evolver = LLMAgentEvolver(
     problem_description=PROBLEM_PROMPT,
     model_name=MODEL_TO_USE,
     n_queries=200,
-    mu=10,
-    evaluator=evaluate_code,
+    mu=20,
+    evaluator=code_evaluator,
     mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
-    max_repair_attempts=1,
+    max_repair_attempts=2,
     n_jobs_eval=10,
     n_jobs_query=1,
     tournament_selection_k=0,
+    memetic_period=5,
     strategy='(mu+lambda)'
 )
+agents, history = evolver.search()
+evolver.save_convergence_plot(filename="convergence_graph.png")
 
-history = evolver.search()
-
-if history:
-    print("\n\n--- Evolution Complete ---")
-    best_solution = history[-1]
-    print(f"Best fitness found: {best_solution['fitness']:.4f}")
-    print("Best code found:")
-    print("```python")
-    print(best_solution['code'])
-    print("```")
-else:
-    print("\n\n--- Evolution Complete ---")
-    print("No valid solutions were found.")

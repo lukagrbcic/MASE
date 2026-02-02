@@ -9,7 +9,6 @@ import re as re
 import sys
 import threading
 import json 
-from evaluator import evaluate_code
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -182,7 +181,7 @@ class LLMAgentEvolver:
         plt.figure(figsize=(10, 6))
         
         # Plot the data
-        plt.plot(queries, dense_array, drawstyle='steps-post', color='blue', linewidth=2)
+        plt.plot(queries, dense_array*-1, drawstyle='steps-post', color='blue', linewidth=2)
         
         # Labeling
         final_val = dense_array[-1]
