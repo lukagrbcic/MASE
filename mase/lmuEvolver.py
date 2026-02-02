@@ -133,6 +133,8 @@ class LLMAgentEvolver:
         print(f"--- Attempting to repair code with error: {agent.get('error')} ---")
         current_code, current_error = agent['code'], agent['error']
 
+
+
         for i in range(self.max_repair_attempts):
             if self.query_calls >= self.n_queries:
                 print("Query budget exhausted, skipping repair.")
@@ -313,6 +315,7 @@ class LLMAgentEvolver:
         prompt += "\nOutput only the raw, complete, combined, and improved Python code."
 
         return self._llm_query(prompt)
+
 
     def search(self):
         MAX_LLM_WORKERS = self.n_jobs_query
