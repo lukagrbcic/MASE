@@ -54,15 +54,41 @@ def run():
 
 result_tuple = run()
 
-if result_tuple[1] is True:
-    # SUCCESS CASE
-    score = result_tuple[0]
-    print(f"PERFORMANCE_SCORE:{score}")
-    sys.exit(0)  # Exit cleanly
-else:
-    # FAILURE CASE
-    # The detailed error message is the second element of the tuple.
-    error_message = result_tuple[1]
-    print(error_message, file=sys.stderr)
-    sys.exit(1)  # Exit with an error code
+#if result_tuple[1] is True:
+    ## SUCCESS CASE
+    #score = result_tuple[0]
+    #print(f"PERFORMANCE_SCORE:{score}")
+    #sys.exit(0)  # Exit cleanly
+#else:
+    ## FAILURE CASE
+    ## The detailed error message is the second element of the tuple.
+    #error_message = result_tuple[1]
+    #print(error_message, file=sys.stderr)
+    #sys.exit(1)  # Exit with an error code
 
+# Check success flag
+if result_tuple[1] is True:
+    score = result_tuple[0]
+
+    # SAVE TO FILE INSTEAD OF PRINTING
+    results = {
+        "status": "success",
+        "score": score
+    }
+    with open("results.json", "w") as f:
+        json.dump(results, f)
+
+    sys.exit(0)
+else:
+    error_message = result_tuple[1]
+
+    # You can also write errors to the JSON if you want structured error handling
+    results = {
+        "status": "error",
+        "message": error_message
+    }
+    with open("results.json", "w") as f:
+        json.dump(results, f)
+
+    #print(error_message, file=sys.stderr) # Keep this for logging if desired
+    sys.exit(1)
