@@ -82,6 +82,8 @@ class LLMAgentEvolver:
         self.lambda_ = int(2*mu)
         self.best_agents_history = []
         self.convergence_history = [] 
+        self.idea_archive = []
+        self.max_archive_size = 15
 
         self.query_calls = 0
         self.query_lock = threading.Lock()
@@ -121,6 +123,24 @@ class LLMAgentEvolver:
             
         else:
             self.best_agents_history.append(self.best_agents_history[-1])
+
+    def _extract_idea_worker(self, code_snippet):
+        """
+        Summarizes the core algorithmic idea of a solution into a single line.
+        """
+        prompt = f"""
+        Analyze the following Python code and summarize the CORE algorithmic idea or heuristic used in 1 short sentence.
+        Do not describe the syntax, describe the LOGIC (e.g., "Uses a greedy approach sorting by ratio X/Y", "Implements simulated annealing").
+
+        Code:
+        ```python
+        {code_snippet}
+        ```
+
+        Output ONLY the one-sentence summary.
+        """
+        # Note: This consumes a query!
+        return self._llm_query(prompt)
 
     # --- REPLACE THIS METHOD ---
     def get_dense_convergence(self):
@@ -435,10 +455,22 @@ class LLMAgentEvolver:
                 use_inspiration = True
                 global_best_code = self.best_agents_history[-1]['code']
 
+        ideas_text = ""
+        if self.idea_archive:
+            ideas_text = "PREVIOUSLY EXPLORED STRATEGIES (Do not repeat these exact approaches unless combining them):\n"
+            for i, idea in enumerate(self.idea_archive):
+                ideas_text += f"- {idea}\n"
+
+
         # Construct the Prompt
         # Base instruction: Combine parents
         prompt = f"""
         You are an expert Python developer.
+
+        {ideas_text}
+
+
+
         Task 1 (Recombination): Combine the best ideas from the two Parent solutions below to create a superior merged solution.
         Task 2 (Mutation): {self.mutate_recombine_context} - Critically analyze the merged result and improve it.
 
@@ -479,6 +511,21 @@ class LLMAgentEvolver:
             return []
 
         self._archive(parents)
+
+        current_best_agent = self.best_agents_history[-1]
+
+        if len(self.convergence_history) > 0 and self.convergence_history[-1]['query'] == self.query_calls:
+
+            # We just found a new record! Let's memorize this idea.
+            new_idea = self._extract_idea_worker(current_best_agent['code'])
+
+            if new_idea and new_idea not in self.idea_archive:
+                self.idea_archive.append(new_idea)
+                # Keep archive small
+                if len(self.idea_archive) > self.max_archive_size:
+                    self.idea_archive.pop(0) # Remove oldest
+
+                print(f"--- Archived New Idea: {new_idea} ---")
 
         generation = 0
         while self.query_calls < self.n_queries:
