@@ -10,7 +10,7 @@ import threading
 from lmuEvolver import LLMAgentEvolver
 
 
-MODEL_TO_USE = "lbl/cborg-coder:latest"
+#MODEL_TO_USE = "lbl/cborg-coder:latest"
 MODEL_TO_USE = 'google/gemini-flash'
 #MODEL_TO_USE = 'lbl/cborg-coder'
 #MODEL_TO_USE ='anthropic/claude-haiku'
@@ -135,7 +135,7 @@ from evaluator import CodeEvaluator
 sphere_evaluator = CodeEvaluator(
     project_path="ActiveLearningExperiment",
     target_relative_path="src/samplers/model_sampler.py",
-    execution_script="run_AL.py"
+    execution_script="run_AL_seed.py"
 )
 
 code_evaluator = sphere_evaluator.evaluate
@@ -144,28 +144,15 @@ code_evaluator = sphere_evaluator.evaluate
 evolver = LLMAgentEvolver(
     problem_description=PROBLEM_PROMPT,
     model_name=MODEL_TO_USE,
-    n_queries=100,
+    n_queries=500,
     mu=5,
     evaluator=code_evaluator,
     mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
     max_repair_attempts=2,
-    n_jobs_eval=2,
+    n_jobs_eval=5,
     n_jobs_query=1,
     strategy='(mu+lambda)'
 )
-
-history = evolver.search()
-
-if history:
-    print("\n\n--- Evolution Complete ---")
-    best_solution = history[-1]
-    print(f"Best fitness found: {best_solution['fitness']:.4f}")
-    print("Best code found:")
-    print("```python")
-    print(best_solution['code'])
-    print("```")
-else:
-    print("\n\n--- Evolution Complete ---")
-    print("No valid solutions were found.")
-
+agents, history = evolver.search()
+evolver.save_convergence_plot(filename="convergence_graph_al.png")
 
