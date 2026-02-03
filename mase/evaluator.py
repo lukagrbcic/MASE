@@ -42,8 +42,12 @@ class CodeEvaluator:
                 with open(target_file_path, "w") as f:
                     f.write(generated_code_string)
 
-                # Execute the project's main script using the instance variable
+                results_file = "results.json"
+
                 command = [sys.executable, self.execution_script]
+
+                # We still capture output to keep the main terminal clean,
+                # but we don't need to parse it for the number.
                 process = subprocess.run(
                     command,
                     cwd=project_in_sandbox_path,
@@ -52,44 +56,63 @@ class CodeEvaluator:
                     timeout=300
                 )
 
-                if process.returncode != 0:
-                    # FAILURE: The script crashed or exited with an error code.
-                    error_output = (f"Subprocess crashed with return code {process.returncode}.\n\n"
-                                    f"STDERR:\n{process.stderr.strip()}\n\n"
-                                    f"STDOUT:\n{process.stdout.strip()}")
-                    return (float('inf'), error_output)
-                else:
-                    # SUCCESS (so far): The script ran. Now find the score in its output.
-                    output = process.stdout
-                    for line in output.splitlines():
-                        if line.strip().startswith("PERFORMANCE_SCORE:"):
-                            # SUCCESS! We found the score.
-                            score = float(line.strip().split(":")[1])
-                            return (-1*score, True)
+                # Path to the results file in the temp directory
+                full_results_path = os.path.join(project_in_sandbox_path, results_file)
 
-                    # FAILURE: Script ran but no score found
-                    error_output = f"Script ran successfully but did not output a 'PERFORMANCE_SCORE:' line. Full output:\n{output.strip()}"
-                    return (float('inf'), error_output)
+                # Check if the file exists
+                if os.path.exists(full_results_path):
+                    with open(full_results_path, "r") as f:
+                        data = json.load(f)
+
+                    if data.get("status") == "success":
+                        score = data["score"]
+                        return (-1 * score, True)
+                    else:
+                        # Logic handled the error gracefully and wrote it to JSON
+                        return (float('inf'), f"Script reported error: {data.get('message')}")
+
+                # Fallback: Process failed and didn't write the file
+                error_output = (f"Script crashed without writing results.\n"
+                                f"Return Code: {process.returncode}\n"
+                                f"STDERR: {process.stderr}")
+                return (float('inf'), error_output)
 
             except subprocess.TimeoutExpired:
                 return (float('inf'), "Evaluation failed: The process timed out.")
             except Exception as e:
-                return (float('inf'), f"An unexpected exception occurred in the evaluation wrapper: {e}")
+                return (float('inf'), f"An unexpected exception occurred: {e}")
 
-# --- usage example ---
+                ## Execute the project's main script using the instance variable
+                #command = [sys.executable, self.execution_script]
+                #process = subprocess.run(
+                    #command,
+                    #cwd=project_in_sandbox_path,
+                    #capture_output=True,
+                    #text=True,
+                    #timeout=300
+                #)
 
-## 1. Initialize for the Sphere Packing project
-#sphere_evaluator = CodeEvaluator(
-    #project_path="SpherePacking",
-    #target_relative_path="sphere_packing.py"
-#)
+                #if process.returncode != 0:
+                    ## FAILURE: The script crashed or exited with an error code.
+                    #error_output = (f"Subprocess crashed with return code {process.returncode}.\n\n"
+                                    #f"STDERR:\n{process.stderr.strip()}\n\n"
+                                    #f"STDOUT:\n{process.stdout.strip()}")
+                    #return (float('inf'), error_output)
+                #else:
+                    ## SUCCESS (so far): The script ran. Now find the score in its output.
+                    #output = process.stdout
+                    #for line in output.splitlines():
+                        #if line.strip().startswith("PERFORMANCE_SCORE:"):
+                            ## SUCCESS! We found the score.
+                            #score = float(line.strip().split(":")[1])
+                            #return (-1*score, True)
 
-## 2. Initialize for the Active Learning project (based on your commented out code)
-#active_learning_evaluator = CodeEvaluator(
-    #project_path="ActiveLearningExperiment",
-    #target_relative_path="src/samplers/model_sampler.py"
-#)
+                    ## FAILURE: Script ran but no score found
+                    #error_output = f"Script ran successfully but did not output a 'PERFORMANCE_SCORE:' line. Full output:\n{output.strip()}"
+                    #return (float('inf'), error_output)
 
-## 3. Use them
-## result = sphere_evaluator.evaluate(some_code_string)
-## result_2 = active_learning_evaluator.evaluate(other_code_string)
+            #except subprocess.TimeoutExpired:
+                #return (float('inf'), "Evaluation failed: The process timed out.")
+            #except Exception as e:
+                #return (float('inf'), f"An unexpected exception occurred in the evaluation wrapper: {e}")
+
