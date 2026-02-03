@@ -56,8 +56,8 @@ class LLMAgentEvolver:
                  max_repair_attempts=1,
                  n_jobs_eval=1,
                  n_jobs_query=1,
-                 memetic_period=2,
-                 inspiration_prob=0.5,
+                 memetic_period=5,
+                 inspiration_prob=0.2,
                  tournament_selection_k=0,
                  temperature=0.75):
 
@@ -220,7 +220,7 @@ class LLMAgentEvolver:
         ```python
         {agent_code}
         ```
-        Output only the raw, optimized code.
+        Output only the raw, optimized code. DO not change the names, returns or arguments of the class and function!
         """
         return self._llm_query(memetic_prompt)
 
@@ -314,6 +314,7 @@ class LLMAgentEvolver:
     
     Fix the bug that caused this error. Output only the raw, complete, corrected Python code.
     Please DON'T FORGET TO ADD imports to the start of the code! Do not rename anything, keep the format as is, just focus on the error!
+    DO not change the names, returns or arguments of the class and function!
     """
             fixed_code = self._llm_query(repair_prompt)
             if not fixed_code:
@@ -461,6 +462,8 @@ class LLMAgentEvolver:
         ```python
         {global_best_code}
         ```
+
+        DO not change the names, returns or arguments of the class and function!!
         """
 
         prompt += "\nOutput only the raw, complete, combined, and improved Python code."

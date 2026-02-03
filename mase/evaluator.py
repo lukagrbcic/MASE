@@ -3,6 +3,8 @@ import shutil
 import tempfile
 import os
 import sys
+import json
+
 
 class CodeEvaluator:
     def __init__(self, project_path: str, target_relative_path: str, execution_script: str = "get_result.py"):
