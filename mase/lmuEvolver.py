@@ -383,15 +383,16 @@ class LLMAgentEvolver:
             print(f"Initializing population (Target: {self.mu} valid agents)...")
             population = []
             
-            while len(population) < int(0.5*self.mu) and self.query_calls < self.n_queries:
+            while len(population) < int(self.mu) and self.query_calls < self.n_queries:
                 
-                needed = self.mu - len(population)
-                batch_size = max(needed, self.n_jobs_query) 
+                needed = int(self.mu) - len(population)
+                print ('current needed', needed)
+                batch_size = needed#max(needed, self.n_jobs_query)
                 
                 prompts = [self.problem_description] * batch_size
                 
                 print(f"--- Init Batch: Requesting {batch_size} solutions... ---")
-                
+
                 with ThreadPoolExecutor(max_workers=self.n_jobs_query) as executor:
                     codes = list(executor.map(self._llm_query, prompts))
     
@@ -667,3 +668,67 @@ class LLMAgentEvolver:
         return self.best_agents_history, self.convergence_history
 
 
+    def run_batch(self, n_trials, plot_filename="batch_convergence.png"):
+            """
+            Runs the search 'n_trials' times.
+            Aggregates the dense convergence arrays.
+            Plots Mean +/- Std Dev.
+            """
+            all_dense_arrays = []
+
+            print(f"Starting Batch Experiment: {n_trials} trials.")
+
+            for i in range(n_trials):
+                print(f"\n================ TRIAL {i+1}/{n_trials} ================")
+                _, _ = self.search()
+
+                # Get the dense array for this run
+                dense = self.get_dense_convergence()
+
+                # Handle cases where initialization failed completely (all infs)
+                # We replace infs with NaN for calculation stats, or a penalty value
+                if np.isinf(dense).all():
+                    print(f"Trial {i+1} failed to find any valid solution.")
+                else:
+                    all_dense_arrays.append(dense)
+
+                self._reset()
+            if not all_dense_arrays:
+                print("All trials failed.")
+                return
+            # Stack arrays: Shape (n_valid_trials, n_queries + 1)
+            data_matrix = np.vstack(all_dense_arrays)
+
+            # Calculate Mean and Std, ignoring NaNs/Infs if possible
+            # We mask Infs for the plot
+            masked_data = np.ma.masked_invalid(data_matrix)
+            mean_curve = np.mean(masked_data, axis=0)
+            std_curve = np.std(masked_data, axis=0)
+
+            # --- Plotting ---
+            queries = np.arange(len(mean_curve))
+
+            plt.figure(figsize=(10, 6))
+
+            # We assume minimization, so we might plot -1*fitness for visual "ascent"
+            # OR just raw fitness if you prefer.
+            # Following previous logic of multiplying by -1 for visualization:
+            y_mean = mean_curve * -1
+            y_std = std_curve # Scale doesn't change direction
+
+            plt.plot(queries, y_mean, color='blue', label='Mean Best Fitness', linewidth=2)
+            plt.fill_between(queries, y_mean - y_std, y_mean + y_std, color='blue', alpha=0.2, label='Std Dev')
+
+            plt.title(f"Batch Convergence ({n_trials} Trials, K={self.k})")
+            plt.xlabel("Query Count")
+            plt.ylabel("Fitness (Inverted)")
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+
+            try:
+                plt.savefig(plot_filename)
+                print(f"\nBatch plot successfully saved to {plot_filename}")
+            except Exception as e:
+                print(f"Error saving plot: {e}")
+            finally:
+                plt.close()
