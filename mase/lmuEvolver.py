@@ -383,7 +383,7 @@ class LLMAgentEvolver:
             print(f"Initializing population (Target: {self.mu} valid agents)...")
             population = []
             
-            while len(population) < self.mu and self.query_calls < self.n_queries:
+            while len(population) < int(0.5*self.mu) and self.query_calls < self.n_queries:
                 
                 needed = self.mu - len(population)
                 batch_size = max(needed, self.n_jobs_query) 
