@@ -712,6 +712,8 @@ class LLMAgentEvolver:
             # Stack arrays: Shape (n_valid_trials, n_queries + 1)
             data_matrix = np.vstack(all_dense_arrays)
 
+            return np.mean(data_matrix, axis=0), np.std(data_matrix, axis=0)
+
             #print (data_matrix)
             #sys.exit()
 
