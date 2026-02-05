@@ -59,6 +59,7 @@ class LLMAgentEvolver:
                  memetic_period=5,
                  inspiration_prob=0.2,
                  tournament_selection_k=0,
+                 diversity_agent=True,
                  temperature=0.75):
 
         self.problem_description = problem_description
@@ -74,7 +75,9 @@ class LLMAgentEvolver:
         self.memetic_period = memetic_period
         self.inspiration_prob = inspiration_prob
         self.tournament_selection_k = tournament_selection_k
+        self.diversity_agent = diversity_agent
         self.temperature = temperature
+
 
         if self.tournament_selection_k > 0:
             print ('Using tournament selection!')
@@ -87,7 +90,12 @@ class LLMAgentEvolver:
 
         self.query_calls = 0
         self.query_lock = threading.Lock()
-        
+
+    def _reset(self):
+        """Resets the internal state for a new run."""
+        self.best_agents_history = []
+        self.convergence_history = []
+        self.query_calls = 0
 
     def _archive(self, population):
         """
@@ -597,7 +605,7 @@ class LLMAgentEvolver:
                         
                         # --- DIVERSITY AGENT START ---
                         # Only run filter if we have a surplus of candidates to choose from
-                        if len(valid_repaired_offspring) > self.mu:
+                        if len(valid_repaired_offspring) > self.mu and self.diversity_agent == True:
                             print("Running Diversity Filter on offspring...")
                             valid_repaired_offspring = self._llm_diversity_agent(valid_repaired_offspring)
                         # --- DIVERSITY AGENT END ---
@@ -699,6 +707,9 @@ class LLMAgentEvolver:
             # Stack arrays: Shape (n_valid_trials, n_queries + 1)
             data_matrix = np.vstack(all_dense_arrays)
 
+            print (data_matrix)
+            sys.exit()
+
             # Calculate Mean and Std, ignoring NaNs/Infs if possible
             # We mask Infs for the plot
             masked_data = np.ma.masked_invalid(data_matrix)
@@ -719,10 +730,11 @@ class LLMAgentEvolver:
             plt.plot(queries, y_mean, color='blue', label='Mean Best Fitness', linewidth=2)
             plt.fill_between(queries, y_mean - y_std, y_mean + y_std, color='blue', alpha=0.2, label='Std Dev')
 
-            plt.title(f"Batch Convergence ({n_trials} Trials, K={self.k})")
+            plt.title(f"Batch Convergence")
             plt.xlabel("Query Count")
             plt.ylabel("Fitness (Inverted)")
             plt.legend()
+            plt.ylim(0, 2.64)
             plt.grid(True, alpha=0.3)
 
             try:
