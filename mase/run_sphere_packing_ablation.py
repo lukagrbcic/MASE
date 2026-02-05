@@ -133,13 +133,13 @@ ideas_agent = [True, False]
 mu = [5, 10, 20]
 repairs = [0, 1, 2]
 
-strategies = ['(mu,lambda)']
+strategies = ['(mu+lambda)']
 n_lambda = [2]
 memetic_period = [1]
-inspiration_prob = [0.1]
+inspiration_prob = [0.1, 0.2]
 tournament_selection_k = [0]
-diversity_agent = [True]
-ideas_agent = [True]
+diversity_agent = [False]
+ideas_agent = [False]
 mu = [5]
 repairs = [0]
 
@@ -176,50 +176,60 @@ for strategy, nl, mp, ip, tsk, div, idea, m, r in param_grid:
 
     result_mean, result_std = evolver.run_batch(3)
 
-    # Store results for the final summary plot
+    safe_strat = strategy.replace('(', '').replace(')', '').replace('+', 'plus').replace(',', '')
+
+    file_id = (f"strat-{safe_strat}_nl-{nl}_mp-{mp}_ip-{ip}_"
+               f"k-{tsk}_div-{div}_idea-{idea}_mu-{m}_rep-{r}")
+
+    # Readable string for the Legend
+    legend_str = (f"S:{strategy} L:{nl} MP:{mp} IP:{ip} "
+                  f"K:{tsk} Div:{div} Idea:{idea} M:{m} R:{r}")
+
+    # 2. Store results (Make sure 'legend_label' is saved here)
     results_full.append({
-        "label": f"S:{strategy}, L:{nl}, M:{m}", # Short label for reference
-        "params_str": f"strat-{strategy}_nl-{nl}_mp-{mp}_ip-{ip}_k-{tsk}_div-{div}_idea-{idea}_mu-{m}_rep-{r}",
+        "legend_label": legend_str,
         "mean": result_mean,
         "std": result_std
     })
 
-    # Prepare data for plotting
+    # 3. Individual Plot
     x_axis = np.arange(0, len(result_mean), 1)
     y_mean = result_mean * -1
 
-    # --- INDIVIDUAL PLOT ---
-    safe_strat = strategy.replace('(', '').replace(')', '').replace('+', 'plus').replace(',', '')
-    file_id = (f"strat-{safe_strat}_nl-{nl}_mp-{mp}_ip-{ip}_"
-               f"k-{tsk}_div-{div}_idea-{idea}_mu-{m}_rep-{r}")
-
     plt.figure()
     plt.plot(x_axis, y_mean, label='Mean')
-    # Add fill_between for uncertainty
     plt.fill_between(x_axis, y_mean - result_std, y_mean + result_std, alpha=0.3, label='Std Dev')
 
-    plt.title(file_id, fontsize=8)
+    plt.title(legend_str, fontsize=8)
     plt.legend()
     plt.savefig(f"ablation_{file_id}.png")
     plt.close()
 
-# --- SUMMARY PLOT (ALL RESULTS) ---
-plt.figure(figsize=(12, 8))
+# 4. Summary Plot (All Results)
+plt.figure(figsize=(14, 10))
 
 for res in results_full:
     mean = res['mean']
     std = res['std']
+    # Use .get() to avoid crashing if a key is missing, defaulting to "Unknown"
+    label_text = res.get('legend_label', 'Unknown Parameters')
+
     x_axis = np.arange(0, len(mean), 1)
     y_mean = mean * -1
 
     # Plot line
-    plt.plot(x_axis, y_mean, alpha=0.6, linewidth=1)
-    # Plot uncertainty
+    plt.plot(x_axis, y_mean, alpha=0.7, linewidth=1.5, label=label_text)
+
+    # Fill uncertainty
     plt.fill_between(x_axis, y_mean - std, y_mean + std, alpha=0.05)
 
 plt.title("Combined Ablation Results")
-plt.xlabel("Generations")
+plt.xlabel("Query")
 plt.ylabel("Score")
+
+# Legend settings
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0., fontsize='x-small', ncol=1)
+
+plt.tight_layout()
 plt.savefig("ablation_summary_all.png")
 plt.close()
-

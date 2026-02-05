@@ -16,9 +16,15 @@ import matplotlib.pyplot as plt
 # Example Usage
 #MODEL_TO_USE = "lbl/cborg-deepthought:latest"
 #MODEL_TO_USE = "lbl/cborg-chat:latest"
-MODEL_TO_USE = 'google/gemini-flash'
+#MODEL_TO_USE = 'google/gemini-flash'
 #MODEL_TO_USE = 'xai/grok-mini'
 #MODEL_TO_USE = "lbl/cborg-mini"
+#MODEL_TO_USE = 'google/gemini-flash-lite'
+#MODEL_TO_USE = 'google/qwen3'
+#MODEL_TO_USE = 'gpt-oss-20b-high'
+MODEL_TO_USE = 'gemini-2.0-flash'
+#MODEL_TO_USE = 'gcp/qwen-3'
+#MODEL_TO_USE = 'gcp/gpt-oss-20b'
 
 
 
@@ -79,17 +85,25 @@ code_evaluator = sphere_evaluator.evaluate
 evolver = LLMAgentEvolver(
     problem_description=PROBLEM_PROMPT,
     model_name=MODEL_TO_USE,
-    n_queries=500,
-    mu=10,
+    n_queries=5,
+    mu=2,
     evaluator=code_evaluator,
     mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
-    max_repair_attempts=2,
-    n_jobs_eval=10,
-    n_jobs_query=1,
+    max_repair_attempts=1,
+    n_jobs_eval=2,
+    n_jobs_query=2,
     tournament_selection_k=0,
-    memetic_period=5,
+    memetic_period=1,
+    inspiration_prob=0.2,
     strategy='(mu+lambda)'
 )
-agents, history = evolver.search()
-evolver.save_convergence_plot(filename="convergence_graph.png")
+
+result_ = evolver.run_batch(1)
+
+#agents, history = evolver.search()
+
+
+#print (agents)
+#print (history)
+#evolver.save_convergence_plot(filename="convergence_graph.png")
 

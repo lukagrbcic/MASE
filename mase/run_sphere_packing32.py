@@ -14,6 +14,8 @@ from lmuEvolver import LLMAgentEvolver
 #MODEL_TO_USE = "lbl/cborg-deepthought:latest"
 MODEL_TO_USE = "lbl/cborg-coder:latest"
 #MODEL_TO_USE ='openai/gpt-5-mini'
+#MODEL_TO_USE = 'gcp/qwen-3'
+MODEL_TO_USE = 'gcp/gpt-oss-20b'
 
 #MODEL_TO_USE = 'google/gemini-flash'
 
@@ -70,20 +72,22 @@ sphere_evaluator = CodeEvaluator(
 )
 
 code_evaluator = sphere_evaluator.evaluate
-
 evolver = LLMAgentEvolver(
     problem_description=PROBLEM_PROMPT,
     model_name=MODEL_TO_USE,
-    n_queries=200,
-    mu=20,
+    n_queries=1000,
+    mu=10,
     evaluator=code_evaluator,
     mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
-    max_repair_attempts=2,
+    max_repair_attempts=0,
     n_jobs_eval=10,
-    n_jobs_query=1,
+    n_jobs_query=5,
     tournament_selection_k=0,
-    memetic_period=5,
+    memetic_period=1,
     strategy='(mu+lambda)'
 )
-agents, history = evolver.search()
-evolver.save_convergence_plot(filename="convergence_graph.png")
+
+evolver.run_batch(10)
+
+#agents, history = evolver.search()
+#evolver.save_convergence_plot(filename="convergence_graph.png")

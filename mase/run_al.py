@@ -12,11 +12,12 @@ from lmuEvolver import LLMAgentEvolver
 
 #MODEL_TO_USE = "lbl/cborg-coder:latest"
 MODEL_TO_USE = 'google/gemini-flash'
+#MODEL_TO_USE = 'google/gemini-pro'
 #MODEL_TO_USE = 'lbl/cborg-coder'
 #MODEL_TO_USE ='anthropic/claude-haiku'
 #MODEL_TO_USE ='openai/o4-mini'
 #MODEL_TO_USE ='openai/o3-mini'
-#MODEL_TO_USE ='openai/gpt-5-mini'
+#MODEL_TO_USE ='openai/gpt-5-nano'
 #MODEL_TO_USE ='lbl/cborg-coder:latest'
 #MODEL_TO_USE ='lbl/cborg-deepthought:latest'
 #MODEL_TO_USE = 'xai/grok-mini'
@@ -59,6 +60,7 @@ class modelSampler:
             #
             # WORKFLOW CONTEXT:
             # -----------------
+            # You are an expert in sampling methods and active learning.
             # This `modelSampler` class is part of a larger ACTIVE LEARNING LOOP.
             # The loop operates iteratively as follows:
             #   1. Call `gen_samples()` to select a new set of samples within bounds `lb` and `ub`.
@@ -82,6 +84,7 @@ class modelSampler:
             # 2. `self.X` and `self.y` are datasets gathered so far in the active learning loop.
             # 3. A model is initially trained on `self.X` and `self.y`.
             # 4. The model is returned later for accuracy assessment.
+            # 5. `self.X` is a matrix (n_rows, 3) and 'self.y' is a matrix (n_rows, 822)
             #
             # -----------------------------------------------------------------------------
             #
@@ -104,6 +107,7 @@ class modelSampler:
             #     ("Batched" = selecting multiple samples at once per iteration.)
             # - Can adapt known acquisition functions (e.g., uncertainty sampling, diversity sampling)
             #   or combine them creatively in a hybrid approach.
+            # - Can experiment with different models, as long as they provide some kind of uncertainty estimates. Random Forests are set as a default example.
             # - Minimize the number of samples required to reach high accuracy.
             # - Model must have `.fit` and `.predict` methods (scikit-learn style) AND provide robust uncertainty estimates.
             # - Code should be clear, maintainable, and computationally efficient for high-dimensional datasets.
@@ -150,7 +154,7 @@ evolver = LLMAgentEvolver(
     mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
     max_repair_attempts=2,
     n_jobs_eval=5,
-    n_jobs_query=1,
+    n_jobs_query=5,
     strategy='(mu+lambda)'
 )
 agents, history = evolver.search()
