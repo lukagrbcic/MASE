@@ -56,10 +56,12 @@ class LLMAgentEvolver:
                  max_repair_attempts=1,
                  n_jobs_eval=1,
                  n_jobs_query=1,
+                 n_lambda=2,
                  memetic_period=5,
                  inspiration_prob=0.2,
                  tournament_selection_k=0,
                  diversity_agent=True,
+                 ideas_agent=True,
                  temperature=0.75):
 
         self.problem_description = problem_description
@@ -72,17 +74,19 @@ class LLMAgentEvolver:
         self.max_repair_attempts = max_repair_attempts 
         self.n_jobs_eval = n_jobs_eval
         self.n_jobs_query = n_jobs_query
+        self.n_lambda = n_lambda
         self.memetic_period = memetic_period
         self.inspiration_prob = inspiration_prob
         self.tournament_selection_k = tournament_selection_k
         self.diversity_agent = diversity_agent
+        self.ideas_agent = ideas_agent
         self.temperature = temperature
 
 
         if self.tournament_selection_k > 0:
             print ('Using tournament selection!')
 
-        self.lambda_ = int(2*mu)
+        self.lambda_ = int(self.n_lambda*mu)
         self.best_agents_history = []
         self.convergence_history = [] 
         self.idea_archive = []
