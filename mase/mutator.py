@@ -372,39 +372,41 @@ class MutateEvolver:
                 return
             # Stack arrays: Shape (n_valid_trials, n_queries + 1)
             data_matrix = np.vstack(all_dense_arrays)
+            return np.mean(data_matrix, axis=0), np.std(data_matrix, axis=0)
 
-            # Calculate Mean and Std, ignoring NaNs/Infs if possible
-            # We mask Infs for the plot
-            masked_data = np.ma.masked_invalid(data_matrix)
-            mean_curve = np.mean(masked_data, axis=0)
-            std_curve = np.std(masked_data, axis=0)
+            ## Calculate Mean and Std, ignoring NaNs/Infs if possible
+            ## We mask Infs for the plot
+            #masked_data = np.ma.masked_invalid(data_matrix)
+            #mean_curve = np.mean(masked_data, axis=0)
+            #std_curve = np.std(masked_data, axis=0)
 
-            # --- Plotting ---
-            queries = np.arange(len(mean_curve))
+            ## --- Plotting ---
+            #queries = np.arange(len(mean_curve))
 
-            plt.figure(figsize=(10, 6))
+            #plt.figure(figsize=(10, 6))
 
-            # We assume minimization, so we might plot -1*fitness for visual "ascent"
-            # OR just raw fitness if you prefer.
-            # Following previous logic of multiplying by -1 for visualization:
-            y_mean = mean_curve * -1
-            y_std = std_curve # Scale doesn't change direction
+            ## We assume minimization, so we might plot -1*fitness for visual "ascent"
+            ## OR just raw fitness if you prefer.
+            ## Following previous logic of multiplying by -1 for visualization:
+            #y_mean = mean_curve * -1
+            #y_std = std_curve # Scale doesn't change direction
 
-            plt.plot(queries, y_mean, color='blue', label='Mean Best Fitness', linewidth=2)
-            plt.fill_between(queries, y_mean - y_std, y_mean + y_std, color='blue', alpha=0.2, label='Std Dev')
+            #plt.plot(queries, y_mean, color='blue', label='Mean Best Fitness', linewidth=2)
+            #plt.fill_between(queries, y_mean - y_std, y_mean + y_std, color='blue', alpha=0.2, label='Std Dev')
 
-            plt.title(f"Batch Convergence ({n_trials} Trials, K={self.k})")
-            plt.xlabel("Query Count")
-            plt.ylabel("Fitness (Inverted)")
-            plt.legend()
-            plt.grid(True, alpha=0.3)
+            #plt.title(f"Batch Convergence ({n_trials} Trials, K={self.k})")
+            #plt.xlabel("Query Count")
+            #plt.ylabel("Fitness (Inverted)")
+            #plt.legend()
+            #plt.ylim(0, 2.64)
+            #plt.grid(True, alpha=0.3)
 
-            try:
-                plt.savefig(plot_filename)
-                print(f"\nBatch plot successfully saved to {plot_filename}")
-            except Exception as e:
-                print(f"Error saving plot: {e}")
-            finally:
-                plt.close()
+            #try:
+                #plt.savefig(plot_filename)
+                #print(f"\nBatch plot successfully saved to {plot_filename}")
+            #except Exception as e:
+                #print(f"Error saving plot: {e}")
+            #finally:
+                #plt.close()
 
 
