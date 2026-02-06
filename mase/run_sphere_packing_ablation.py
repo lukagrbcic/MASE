@@ -55,7 +55,25 @@ return circles
 PROBLEM_PROMPT = f"""
 You are an expert computational geometry programmer. Your task is to improve a solution for a circle packing problem.
 The goal is to place 26 non-overlapping circles inside a 1x1 unit square to maximize the sum of their radii.
+
+You are an expert computational geometer and optimization specialist focusing on circle packing problems.
+Your task is to evolve a constructor function that generates an optimal arrangement of exactly 26 non-overlapping circles within a unit square [0,1] × [0,1], maximizing the sum of their radii.
 Free to use any kind of solution to fix this, including Optimization methods - add imports for this if needed.
+
+  PROBLEM CONTEXT:
+  - Target: Beat the AlphaEvolve benchmark of sum_radii = 2.6358627564136983
+  - Constraint: All circles must be fully contained within the unit square with no overlaps
+  - Mathematical formulation: For circle i at position (xi, yi) with radius ri:
+    * Containment: ri ≤ xi ≤ 1-ri and ri ≤ yi ≤ 1-ri
+    * Non-overlap: √[(xi-xj)² + (yi-yj)²] ≥ ri + rj for all i≠j
+    * Objective: maximize Σri subject to above constraints
+
+  COMPUTATIONAL BUDGET:
+  - **Time limit**: 60 seconds maximum execution time
+  - **Memory limit**: 1 GB
+
+  TECHNICAL REQUIREMENTS:
+  - **Determinism**: Use fixed random seeds if employing stochastic methods for reproducibility
 
 Below is a simple but valid, working solution. Your task is to modify this code to find a better packing.
 The function must be named `circle_packing26` and return a NumPy array of shape (26, 3).
@@ -80,69 +98,27 @@ sphere_evaluator = CodeEvaluator(
 
 code_evaluator = sphere_evaluator.evaluate
 
-#results_full = []
-
-
-
-#strategies = ['(mu,lambda)', '(mu+lambda)']
-#n_lambda = [2, 3, 4]
-#memetic_period = [1, 3, 5]
-#inspiration_prob = [0.1, 0.5, 0.8]
-#tournament_selection_k = [0, 2, 3]
-#diversity_agent = [True, False]
-#ideas_agent = [True, False]
-#mu = [5, 10, 20]
-#repairs = [0, 1, 2]
-
-#evolver = LLMAgentEvolver(
-    #problem_description=PROBLEM_PROMPT,
-    #model_name=MODEL_TO_USE,
-    #n_queries=5,
-    #mu=2,
-    #evaluator=code_evaluator,
-    #mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
-    #max_repair_attempts=1,
-    #n_lambda=3,
-    #n_jobs_eval=2,
-    #n_jobs_query=2,
-    #tournament_selection_k=0,
-    #memetic_period=1,
-    #inspiration_prob=0.2,
-    #diversity_agent=False,
-    #ideas_agent=False,
-    #strategy='(mu+lambda)'
-#)
-
-#result_mean, result_std = evolver.run_batch(1)
-
-#plt.plot(np.arange(0, len(result_mean), 1), result_mean*-1)
-
-#plt.savefig('test.png')
-
-
-
 results_full = []
 
-strategies = ['(mu,lambda)', '(mu+lambda)']
-n_lambda = [2, 3, 4]
-memetic_period = [1, 3, 5]
-inspiration_prob = [0.1, 0.5, 0.8]
-tournament_selection_k = [0, 2, 3]
-diversity_agent = [True, False]
-ideas_agent = [True, False]
-mu = [5, 10, 20]
-repairs = [0, 1, 2]
+#strategies = ['(mu,lambda)','(mu+lambda)']
+#n_lambda = [2, 3]
+#memetic_period = [1, 5]
+#inspiration_prob = [0.1, 0.5]
+#tournament_selection_k = [0, 3]
+#diversity_agent = [True, False]
+#ideas_agent = [True, False]
+#mu = [5, 10]
+#repairs = [0]#, 1, 2]
 
-strategies = ['(mu+lambda)']
+strategies = ['(mu,lambda)']
 n_lambda = [2]
 memetic_period = [1]
-inspiration_prob = [0.1, 0.2]
-tournament_selection_k = [0]
-diversity_agent = [False]
+inspiration_prob = [0.1]
+tournament_selection_k = [3]
+diversity_agent = [True]
 ideas_agent = [False]
 mu = [5]
-repairs = [0]
-
+repairs = [0]#, 1, 2]
 
 # Create a generator of all possible combinations
 param_grid = itertools.product(
@@ -158,14 +134,14 @@ for strategy, nl, mp, ip, tsk, div, idea, m, r in param_grid:
     evolver = LLMAgentEvolver(
         problem_description=PROBLEM_PROMPT,
         model_name=MODEL_TO_USE,
-        n_queries=5,
+        n_queries=200,
         mu=m,
         evaluator=code_evaluator,
         mutate_recombine_context=MUTATE_RECOMBINE_PROMPT,
         max_repair_attempts=r,
         n_lambda=nl,
-        n_jobs_eval=2,
-        n_jobs_query=2,
+        n_jobs_eval=4,
+        n_jobs_query=4,
         tournament_selection_k=tsk,
         memetic_period=mp,
         inspiration_prob=ip,
@@ -174,7 +150,7 @@ for strategy, nl, mp, ip, tsk, div, idea, m, r in param_grid:
         strategy=strategy
     )
 
-    result_mean, result_std = evolver.run_batch(3)
+    result_mean, result_std = evolver.run_batch(5)
 
     safe_strat = strategy.replace('(', '').replace(')', '').replace('+', 'plus').replace(',', '')
 
@@ -202,6 +178,8 @@ for strategy, nl, mp, ip, tsk, div, idea, m, r in param_grid:
 
     plt.title(legend_str, fontsize=8)
     plt.legend()
+    plt.ylim(2, 2.7)
+    plt.grid()
     plt.savefig(f"ablation_{file_id}.png")
     plt.close()
 
@@ -210,7 +188,6 @@ plt.figure(figsize=(14, 10))
 
 for res in results_full:
     mean = res['mean']
-    std = res['std']
     # Use .get() to avoid crashing if a key is missing, defaulting to "Unknown"
     label_text = res.get('legend_label', 'Unknown Parameters')
 
@@ -219,14 +196,13 @@ for res in results_full:
 
     # Plot line
     plt.plot(x_axis, y_mean, alpha=0.7, linewidth=1.5, label=label_text)
-
     # Fill uncertainty
-    plt.fill_between(x_axis, y_mean - std, y_mean + std, alpha=0.05)
 
 plt.title("Combined Ablation Results")
 plt.xlabel("Query")
 plt.ylabel("Score")
-
+plt.ylim(2, 2.7)
+plt.grid()
 # Legend settings
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0., fontsize='x-small', ncol=1)
 
